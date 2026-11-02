@@ -10,7 +10,7 @@ try{
  let {b}=await req('/api/workspace','GET',null,root),rev=b.revision;
  async function op(action,payload,headers=root){const {r,b}=await req('/api/workspace','POST',{action,payload,revision:rev},headers);assert.equal(r.status,200,JSON.stringify(b));rev=b.revision;return b.state}
  let state=await op('site',{name:'Assigned site',location:'Test'});const siteA=state.sites[0].id;state=await op('site',{name:'Other site',location:'Test'});const siteB=state.sites[1].id;
- let result=await req('/api/accounts','POST',{action:'provision',siteIds:[siteA]},root);assert.equal(result.r.status,200,JSON.stringify(result.b));const credentials=result.b.credentials;assert.equal(credentials.length,5);
+ let result=await req('/api/accounts','POST',{action:'provision',siteIds:[siteA]},root);assert.equal(result.r.status,200,JSON.stringify(result.b));const credentials=result.b.credentials;assert.equal(credentials.length,5);assert.equal(result.b.accounts.length,5);
  assert.equal((await req('/api/workspace','GET',null,root)).r.status,401,'Gateway setup identity must no longer bypass team sign-in');
  assert.equal((await req('/api/auth/sign-up/email','POST',{name:'Forged',email:'fake@example.test',password:'invalid-password',username:'fake'})).r.status,403);
  async function login(username){const c=credentials.find(x=>x.username===username);const res=await req('/api/auth/sign-in/username','POST',{username,password:c.password});assert.equal(res.r.status,200,JSON.stringify(res.b));return {Cookie:res.r.headers.getSetCookie().map(v=>v.split(';')[0]).join('; ')};}
