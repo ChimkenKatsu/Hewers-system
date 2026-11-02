@@ -20,6 +20,13 @@ export async function members(owner?:string):Promise<any[]>{
  const rows=await sb('hewers_staff?select=*&'+(owner?'workspace_id='+eq(owner):'active=eq.true'));
  return Promise.all(rows.map(async(m:any)=>({...m,owner:m.workspace_id,name:m.full_name,created:m.created_at,active:m.active?1:0,site_ids:JSON.stringify((await sb('hewers_staff_sites?workspace_id='+eq(m.workspace_id)+'&staff_id='+eq(m.id)+'&select=site_id')).map((x:any)=>x.site_id))})));
 }
+export async function syncTeamAccounts(owner:string){
+ if(!usesSupabase())return;
+ const rows=await env.DB!.prepare('SELECT id,username,name,role,site_ids,active,must_change_password FROM auth_user WHERE workspace_id=?').bind(owner).all<{id:string;username:string;name:string;role:string;site_ids:string;active:number;must_change_password:number}>();
+ await rpc('hewers_sync_team_accounts',{p_owner:owner,p_accounts:rows.results.map(r=>({id:r.id,username:r.username,name:r.name,role:r.role,siteIds:JSON.parse(r.site_ids),active:!!r.active,mustChangePassword:!!r.must_change_password}))});
+}
+// A failed metadata projection must never hide a newly generated temporary password.
+export async function teamSyncWarning(owner:string){try{await syncTeamAccounts(owner);return undefined}catch{return 'Account saved. Supabase account metadata sync is pending; reopen Staff access to retry.'}}
 export async function ensureWorkspace(owner:string,email:string){
  let row=(await sb('hewers_workspaces?id='+eq(owner)+'&select=*'))[0];if(row?.migrated_at)return;
  // Copy only the signed-in owner's legacy workspace. Never overwrite a new Supabase state.
@@ -30,5 +37,6 @@ export async function ensureWorkspace(owner:string,email:string){
  const faces=await env.DB!.prepare('SELECT * FROM face_templates WHERE owner=?').bind(owner).all<any>();
  for(const f of faces.results)await sb('hewers_face_enrollments','POST',{workspace_id:owner,worker_id:f.worker_id,model:'face-api-1.7.15-ssd68-resnet128',descriptors:JSON.parse(f.descriptor),consent_record:f.consent,enrolled_by:f.actor,enrolled_at:f.created},'resolution=ignore-duplicates');
  for(const p of (row.state as State).photos){const key=new URL(p.url,'https://local').searchParams.get('key');if(!key||!key.startsWith(owner+'/'))throw Error('Legacy photo has an invalid workspace path');const old=await env.BUCKET!.get(key);if(!old)throw Error('An existing photo is missing. Migration stopped to protect your records.');await storedPhoto(key,'POST',await old.arrayBuffer(),old.httpMetadata?.contentType);await registerUpload(owner,p.siteId,key);}
+ await syncTeamAccounts(owner);
  await sb('hewers_workspaces?id='+eq(owner),'PATCH',{migrated_at:new Date().toISOString()});
 }

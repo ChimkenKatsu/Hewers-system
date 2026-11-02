@@ -10,7 +10,7 @@ export function fail(e:any){const m=e.message||'Request failed';return json({err
 export async function context(req:Request,requested?:string){
  const user=await identity(req);const owner=requested||req.headers.get('x-workspace-id')||user.local?.workspaceId||user.userId;
  if(user.local&&owner!==user.local.workspaceId)throw Error('FORBIDDEN: This account belongs to another workspace');
- if(usesSupabase()&&owner===user.userId)await ensureWorkspace(owner,user.email);
+ if(usesSupabase()&&(owner===user.userId||(user.local?.workspaceId===owner&&user.local.role==='administrator')))await ensureWorkspace(owner,user.email);
  let access:Access={owner,...user,role:'administrator',siteIds:[]};
  if(user.local){access={owner,userId:user.userId,email:user.email,role:user.local.role as Role,siteIds:JSON.parse(user.local.siteIds)};}else if(owner!==user.userId){
   const member=usesSupabase()?(await members(owner)).find(m=>m.active&&(m.user_id===user.userId||(!m.user_id&&m.email===user.email))):await env.DB!.prepare("SELECT * FROM memberships WHERE owner=? AND active=1 AND (user_id=? OR (user_id IS NULL AND email=?))").bind(owner,user.userId,user.email).first<any>();

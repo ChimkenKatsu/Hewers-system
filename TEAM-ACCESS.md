@@ -38,6 +38,25 @@ No administrator can disable their own account; at least one named admin remains
 active. Administrative resets generate another temporary password and require
 its owner to choose a personal password again.
 
+Email recovery is deferred until real recovery addresses are supplied. For now,
+another administrator can use **Staff access → Reset password**.
+
+## Supabase alignment
+
+Apply `supabase/migrations/20261102163410_align_team_accounts_approvals.sql`
+after the existing integration schema. It adds RLS-protected, server-only account
+metadata, auditor site assignments, and worker approval records. Password hashes
+and session tokens are never copied to these tables. Account management retries
+metadata sync when Staff access opens, and reports a warning if it cannot sync.
+The private D1 account record remains authoritative for every permission check.
+
+Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` only as server secrets. Enabling
+the integration migrates an authorized administrator's workspace, legacy staff,
+face enrollments, and photos without overwriting an existing Supabase state.
+Back up both databases before changing storage providers. Do not remove a working
+Supabase configuration after users have written new records there: D1 is then an
+older snapshot, not an automatic failover database.
+
 The setup account may see a sign-in message immediately after provisioning; use
 admin1's temporary credentials to enter the named-account workflow. This is
 intentional and prevents the legacy local mock owner from bypassing role checks.
