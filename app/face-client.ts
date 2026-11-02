@@ -10,7 +10,8 @@ export function loadFaceEngine():Promise<any>{
 }
 export async function captureDescriptor(video:HTMLVideoElement){
  if(!video.videoWidth||video.readyState<2)throw Error('Camera is not ready');
- const api=await loadFaceEngine();const frame=document.createElement('canvas');frame.width=video.videoWidth;frame.height=video.videoHeight;const context=frame.getContext('2d');if(!context)throw Error('Unable to capture the camera. Try another browser.');context.drawImage(video,0,0);const found=await api.detectAllFaces(frame,new api.SsdMobilenetv1Options({minConfidence:0.75,maxResults:3})).withFaceLandmarks().withFaceDescriptors();
+ const api=await loadFaceEngine();const frame=document.createElement('canvas');frame.width=video.videoWidth;frame.height=video.videoHeight;const context=frame.getContext('2d');if(!context)throw Error('Unable to capture the camera. Try another browser.');context.drawImage(video,0,0);const found=await api.detectAllFaces(frame,new api.SsdMobilenetv1Options({minConfidence:0.9,maxResults:3})).withFaceLandmarks().withFaceDescriptors();
  if(found.length!==1)throw Error(found.length?'Only one person should be visible in the camera':'No clear face detected. Face the camera in even lighting.');
- const face=found[0];if(face.detection.box.width<90||face.detection.box.height<90)throw Error('Move a little closer to the camera');return Array.from(face.descriptor) as number[];
+ const face=found[0];if(face.detection.box.width<90||face.detection.box.height<90)throw Error('Move a little closer to the camera');if(face.detection.box.width/Math.max(frame.width,frame.height)<0.2)throw Error('Move closer so your face fills the guide');return Array.from(face.descriptor) as number[];
 }
+

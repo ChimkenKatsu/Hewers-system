@@ -22,12 +22,14 @@ export async function POST(req:Request){try{
  if(p.action!=='submit'||p.model!==FACE_MODEL)throw Error('Invalid face submission');
  const used=usesSupabase()?{meta:{changes:(await sb('hewers_face_challenges?id='+eq(String(p.challenge))+'&workspace_id='+eq(ctx.access.owner)+'&operator_id='+eq(ctx.access.userId)+'&worker_id='+eq(p.workerId)+'&purpose='+eq(purpose)+'&used=eq.false&expires_at=gt.'+encodeURIComponent(new Date().toISOString()),'PATCH',{used:true},'return=representation')).length}}:await env.DB!.prepare('UPDATE face_challenges SET used=1 WHERE id=? AND owner=? AND user_id=? AND worker_id=? AND purpose=? AND used=0 AND expires>?').bind(String(p.challenge),ctx.access.owner,ctx.access.userId,p.workerId,purpose,Date.now()).run();if(!used.meta.changes)throw Error('Capture expired or was already used. Start a new capture.');
  const samples=validatePair(p.samples);
+ const template=usesSupabase()?(await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&worker_id='+eq(p.workerId)+'&select=descriptors')).map((r:any)=>({descriptor:JSON.stringify(r.descriptors)}))[0]:await env.DB!.prepare('SELECT descriptor FROM face_templates WHERE owner=? AND worker_id=?').bind(ctx.access.owner,p.workerId).first<any>();
  if(purpose==='enroll'){
+  if(template&&!matches(samples,JSON.parse(template.descriptor)))return json({error:'This face does not match the existing enrollment. No changes were saved. Ask an authorized operator to remove the enrollment after verifying the worker’s identity.'},422);
   if(p.consent!==true)throw Error('Confirm the worker has agreed to pilot enrollment');
   if(usesSupabase())await sb('hewers_face_enrollments?on_conflict=workspace_id,worker_id','POST',{workspace_id:ctx.access.owner,worker_id:p.workerId,model:FACE_MODEL,descriptors:samples,consent_record:'Pilot enrollment confirmed by operator',enrolled_by:ctx.access.email,enrolled_at:new Date().toISOString()},'resolution=merge-duplicates');else await env.DB!.prepare('INSERT INTO face_templates (id,owner,worker_id,descriptor,created,actor,consent) VALUES (?,?,?,?,?,?,?) ON CONFLICT(owner,worker_id) DO UPDATE SET descriptor=excluded.descriptor,created=excluded.created,actor=excluded.actor,consent=excluded.consent').bind(crypto.randomUUID(),ctx.access.owner,p.workerId,JSON.stringify(samples),new Date().toISOString(),ctx.access.email,'Pilot enrollment confirmed by operator').run();
   return json({ok:true,message:'Face enrolled for pilot matching'});
  }
- const template=usesSupabase()?(await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&worker_id='+eq(p.workerId)+'&select=descriptors')).map((r:any)=>({descriptor:JSON.stringify(r.descriptors)}))[0]:await env.DB!.prepare('SELECT descriptor FROM face_templates WHERE owner=? AND worker_id=?').bind(ctx.access.owner,p.workerId).first<any>();
+
  if(!template)throw Error('This worker has not been enrolled');
  if(!matches(samples,JSON.parse(template.descriptor)))return json({error:'Face did not match the selected worker. No attendance was recorded.'},422);
  const state=applyOperation(ctx.state,'attendance',{workerId:p.workerId,type:purpose,note:'Face-assisted pilot · browser descriptor match; liveness not verified'},ctx.access.email);
@@ -37,3 +39,4 @@ export async function POST(req:Request){try{
  state.audit[0].action=state.audit[0].action.replace('(manual)','(face-assisted pilot)');state.audit[0].kind='face-check';
  return json({...await commit(ctx,state),ok:true,message:'Face matched · attendance recorded as a pilot entry'});
 }catch(e){return fail(e)}}
+

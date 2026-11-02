@@ -26,3 +26,14 @@ assert.throws(()=>validateDescriptor(Array(127).fill(.1)),/Invalid/);
 assert.throws(()=>validateDescriptor(Array(128).fill(NaN)),/Invalid/);
 assert.throws(()=>validatePair([descriptor,different]),/inconsistent/);
 console.log('PASS: role matrix, forged site access denial, filtered reads, custodian privacy, descriptor validation, match/non-match thresholds.');
+
+// Stricter verification rejects borderline matches and a single-reference shortcut.
+const shifted=(amount:number)=>descriptor.map((x,i)=>i===0?x+amount:x);
+assert.ok(matches([shifted(.2),shifted(.21)],[descriptor,near]));
+assert.equal(matches([shifted(.45),shifted(.45)],[descriptor,near]),false);
+assert.equal(matches([shifted(.4),shifted(.4)],[descriptor,shifted(-.05)]),false);
+assert.equal(matches([descriptor],[descriptor,near]),false);
+assert.equal(matches([descriptor,near],[]),false);
+assert.equal(matches([descriptor,near],[Array(128).fill(NaN),near]),false);
+assert.throws(()=>validatePair([descriptor,shifted(.26)]),/inconsistent/);
+console.log('PASS: strict match cutoff, all-reference agreement, malformed templates, consistent captures.');

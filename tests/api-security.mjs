@@ -30,6 +30,9 @@ try{
  let submission={action:'submit',purpose:'enroll',workerId:workerA,model,samples:[sample,sample],consent:true,challenge:challenge.challenge};
  result=await req('/api/face','POST',submission,'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));
  assert.equal((await req('/api/face','POST',submission,'hewers-integration-staff')).status,400);
+ const replacementChallenge=await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:workerA},'hewers-integration-staff');
+ assert.equal((await req('/api/face','POST',{...submission,samples:[other,other],challenge:replacementChallenge.challenge},'hewers-integration-staff')).status,422);
+ assert.equal((await req('/api/workspace')).state.attendance.length,0);
  result=await req('/api/face','GET',null,'hewers-integration-staff');assert.equal(result.enrollments.length,1);assert.ok(!JSON.stringify(result).includes('descriptor'));
  challenge=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId:workerA},'hewers-integration-staff');
  submission={action:'submit',purpose:'in',workerId:workerA,model,samples:[other,other],challenge:challenge.challenge};assert.equal((await req('/api/face','POST',submission,'hewers-integration-staff')).status,422);
@@ -58,3 +61,4 @@ try{
  const badOrigin=await mf.dispatchFetch('http://test.local/api/workspace',{method:'POST',headers:{'oai-authenticated-user-id':'hewers-integration-owner-2','oai-authenticated-user-email':'owner@example.test','Origin':'https://evil.test','Content-Type':'application/json'},body:'{}'});assert.equal(badOrigin.status,403);
  console.log('PASS: '+(process.env.HEWERS_SUPABASE_TEST?'Supabase':'D1')+' API tests — staff assignment, shared read filtering, cross-site denial, outsider denial, admin-only staff API, face challenge replay rejection, failed match leaves no attendance, matched check-in/out, template metadata privacy, immediate revocation, R2 uploads, cross-site photo denial and CSRF denial.');
 }finally{await mf.dispose()}
+
