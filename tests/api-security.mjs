@@ -41,6 +41,11 @@ try{
  result=await req('/api/face','POST',{...submission,samples:[sample,sample],challenge:challenge.challenge},'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));assert.equal(result.state.attendance[0].method,'Face-assisted pilot');
  challenge=await req('/api/face','POST',{action:'challenge',purpose:'out',workerId:workerA},'hewers-integration-staff');
  result=await req('/api/face','POST',{...submission,purpose:'out',samples:[sample,sample],challenge:challenge.challenge},'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));assert.ok(result.state.attendance[0].timeOut);assert.equal(result.state.attendance[0].timeOutMethod,'Face-assisted pilot');
+ // An enrolled face cannot be assigned to another worker, even at a different site.
+ const duplicateChallenge=await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:workerB});
+ const duplicate=await req('/api/face','POST',{...submission,purpose:'enroll',workerId:workerB,consent:true,samples:[sample,sample],challenge:duplicateChallenge.challenge});
+ assert.equal(duplicate.status,422,JSON.stringify(duplicate));
+ assert.equal((await req('/api/face')).enrollments.length,1);
  // Exercise R2 uploads and site authorization against the actual handlers.
  async function upload(siteId,user='hewers-integration-staff'){
   const form=new FormData();form.append('siteId',siteId);form.append('file',new Blob([new Uint8Array([137,80,78,71,13,10,26,10])],{type:'image/png'}),'test.png');

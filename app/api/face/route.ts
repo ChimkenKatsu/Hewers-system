@@ -2,7 +2,7 @@ import {usesSupabase,sb,eq} from '../../supabase-server';
 import {env} from 'cloudflare:workers';
 import {context,json,fail,originCheck,commit} from '../../server-access';
 import {authorize,hasSite} from '../../permissions';
-import {validatePair,matches,FACE_MODEL} from '../../face-math';
+import {validatePair,matches,distance,FACE_MODEL} from '../../face-math';
 import {applyOperation} from '../../operations';
 export async function GET(req:Request){try{
  const ctx=await context(req);if(ctx.access.role==='custodian')throw Error('FORBIDDEN: Attendance access is unavailable for this role');
@@ -23,6 +23,10 @@ export async function POST(req:Request){try{
  const used=usesSupabase()?{meta:{changes:(await sb('hewers_face_challenges?id='+eq(String(p.challenge))+'&workspace_id='+eq(ctx.access.owner)+'&operator_id='+eq(ctx.access.userId)+'&worker_id='+eq(p.workerId)+'&purpose='+eq(purpose)+'&used=eq.false&expires_at=gt.'+encodeURIComponent(new Date().toISOString()),'PATCH',{used:true},'return=representation')).length}}:await env.DB!.prepare('UPDATE face_challenges SET used=1 WHERE id=? AND owner=? AND user_id=? AND worker_id=? AND purpose=? AND used=0 AND expires>?').bind(String(p.challenge),ctx.access.owner,ctx.access.userId,p.workerId,purpose,Date.now()).run();if(!used.meta.changes)throw Error('Capture expired or was already used. Start a new capture.');
  const samples=validatePair(p.samples);
  const template=usesSupabase()?(await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&worker_id='+eq(p.workerId)+'&select=descriptors')).map((r:any)=>({descriptor:JSON.stringify(r.descriptors)}))[0]:await env.DB!.prepare('SELECT descriptor FROM face_templates WHERE owner=? AND worker_id=?').bind(ctx.access.owner,p.workerId).first<any>();
+ // Compare within the workspace, including workers outside the operator's assigned site.
+ // Templates remain on the server; ambiguous identities never create attendance.
+ const allTemplates=usesSupabase()?(await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&select=worker_id,descriptors')).map((r:any)=>({worker_id:r.worker_id,descriptor:JSON.stringify(r.descriptors)})):(await env.DB!.prepare('SELECT worker_id,descriptor FROM face_templates WHERE owner=?').bind(ctx.access.owner).all<any>()).results;
+ for(const other of allTemplates){if(other.worker_id===p.workerId)continue;let references:number[][];try{references=validatePair(JSON.parse(other.descriptor))}catch{throw Error('A stored face enrollment needs review. Ask your administrator to re-enroll it.')}if(samples.some(sample=>references.some(reference=>distance(sample,reference)<=0.45)))return json({error:'This capture is too similar to another enrollment. No record was saved. Ask your administrator to review the enrollments.'},422);}
  if(purpose==='enroll'){
   if(template&&!matches(samples,JSON.parse(template.descriptor)))return json({error:'This face does not match the existing enrollment. No changes were saved. Ask an authorized operator to remove the enrollment after verifying the worker’s identity.'},422);
   if(p.consent!==true)throw Error('Confirm the worker has agreed to pilot enrollment');
