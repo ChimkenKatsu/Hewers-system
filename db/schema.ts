@@ -14,3 +14,7 @@ export const faceTemplates=sqliteTable('face_templates',{
 export const faceChallenges=sqliteTable('face_challenges',{
  id:text('id').primaryKey(),owner:text('owner').notNull(),userId:text('user_id').notNull(),workerId:text('worker_id').notNull(),purpose:text('purpose').notNull(),created:integer('created').notNull(),expires:integer('expires').notNull(),used:integer('used').notNull().default(0),
 });
+
+export const googleConnections=sqliteTable('google_connections',{
+ owner:text('owner').primaryKey(),token:text('token').notNull(),folderId:text('folder_id'),sheetId:text('sheet_id'),lastSync:text('last_sync'),lease:integer('lease').notNull().default(0),
+});
