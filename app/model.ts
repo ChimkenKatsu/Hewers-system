@@ -5,7 +5,8 @@ export type Material={id:string;name:string;unit:string;siteId:string;balance:nu
 export type Movement={id:string;materialId:string;siteId:string;type:string;quantity:number;note:string;created:string;actor:string};
 export type Evidence={id:string;siteId:string;caption:string;category:string;url:string;created:string;actor:string;transactionId:string};
 export type Audit={id:string;action:string;created:string;actor:string;siteId?:string;kind?:string};
-export type State={sites:Site[];workers:Worker[];attendance:Attendance[];materials:Material[];movements:Movement[];photos:Evidence[];audit:Audit[]};
+export type WorkerRequest={id:string;name:string;trade:string;siteId:string;status:"pending"|"accepted"|"declined";created:string;createdBy:string;reviewedAt?:string;reviewedBy?:string;workerId?:string;reason?:string};
+export type State={workerRequests?:WorkerRequest[];sites:Site[];workers:Worker[];attendance:Attendance[];materials:Material[];movements:Movement[];photos:Evidence[];audit:Audit[]};
 export const emptyState=():State=>({sites:[],workers:[],attendance:[],materials:[],movements:[],photos:[],audit:[]});
 export const day=(value:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
 export function demoState():State{

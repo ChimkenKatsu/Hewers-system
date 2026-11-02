@@ -18,3 +18,5 @@ export const faceChallenges=sqliteTable('face_challenges',{
 export const googleConnections=sqliteTable('google_connections',{
  owner:text('owner').primaryKey(),token:text('token').notNull(),folderId:text('folder_id'),sheetId:text('sheet_id'),lastSync:text('last_sync'),lease:integer('lease').notNull().default(0),
 });
+
+export * from './auth-schema';

@@ -1,6 +1,7 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
-import hostingConfig from "./.openai/hosting.json";
+import {existsSync,readFileSync} from "node:fs";
+const hostingConfig=existsSync("./.openai/hosting.json")?JSON.parse(readFileSync("./.openai/hosting.json","utf8")):{d1:"DB",r2:"BUCKET"};
 import { readExecutionProfile } from "./scripts/execution-profile.mjs";
 import { configureToolEnvironment } from "./scripts/tool-environment.mjs";
 import { sites } from "./scripts/vite/sites-vite-plugin";

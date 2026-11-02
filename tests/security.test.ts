@@ -37,3 +37,9 @@ assert.equal(matches([descriptor,near],[]),false);
 assert.equal(matches([descriptor,near],[Array(128).fill(NaN),near]),false);
 assert.throws(()=>validatePair([descriptor,shifted(.26)]),/inconsistent/);
 console.log('PASS: strict match cutoff, all-reference agreement, malformed templates, consistent captures.');
+
+const auditor:Access={...a('auditor'),email:'auditor1'};
+authorize(auditor,s,'worker',{siteId:'s1'});authorize(auditor,s,'movement',{materialId:'m1'});authorize(auditor,s,'face-check',{workerId:'w0'});
+assert.throws(()=>authorize(auditor,s,'worker',{siteId:'s2'}),/FORBIDDEN/);
+for(const action of ['staff','site','worker-review','material','attendance','face-delete'])assert.equal(can(auditor,action),false);
+console.log('PASS: auditor assigned-site scope and no admin, approval, manual-attendance or enrollment-removal permissions.');

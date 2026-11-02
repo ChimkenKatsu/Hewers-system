@@ -5,7 +5,7 @@ const require=createRequire(import.meta.url),wranglerRequire=createRequire(requi
 const {Miniflare}=wranglerRequire('miniflare');
 const writes=[],uploads=[];let photoSaved=false,refreshes=0;
 const json=(b,status=200)=>Response.json(b,{status});
-const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB'],r2Buckets:['BUCKET'],bindings:{GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',GOOGLE_REDIRECT_URI:'https://test.local/api/google/callback',GOOGLE_TOKEN_KEY:Buffer.alloc(32,9).toString('base64')},outboundService:async req=>{
+const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET'],bindings:{GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',GOOGLE_REDIRECT_URI:'https://test.local/api/google/callback',GOOGLE_TOKEN_KEY:Buffer.alloc(32,9).toString('base64')},outboundService:async req=>{
  const u=new URL(req.url);if(u.hostname==='oauth2.googleapis.com'){refreshes++;return json({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600,scope:'https://www.googleapis.com/auth/drive.file'})}
  assert.ok(['www.googleapis.com','sheets.googleapis.com'].includes(u.hostname),'Unexpected outbound request');assert.equal(req.headers.get('Authorization'),'Bearer test-access');
  if(u.pathname==='/drive/v3/files'&&req.method==='GET')return json({files:u.searchParams.get('q')?.includes('hewersPhoto')&&photoSaved?[{id:'photo-1'}]:[]});

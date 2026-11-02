@@ -5,7 +5,7 @@ export const config=()=>env as unknown as GoogleConfig;
 export const scope='https://www.googleapis.com/auth/drive.file';
 export function missingConfig(){return ['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GOOGLE_REDIRECT_URI','GOOGLE_TOKEN_KEY'].filter(k=>!config()[k as keyof GoogleConfig]);}
 export function requireConfig(){if(missingConfig().length)throw Error('Google setup is incomplete. See the Google connection instructions in Settings.');const url=new URL(config().GOOGLE_REDIRECT_URI!);if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['127.0.0.1','localhost'].includes(url.hostname)))throw Error('Google redirect URI must use HTTPS or localhost');}
-export async function admin(req:Request){const ctx=await context(req);if(ctx.access.role!=='administrator'||ctx.access.owner!==ctx.access.userId)throw Error('FORBIDDEN: Only the workspace owner can manage Google sync');return ctx;}
+export async function admin(req:Request){const ctx=await context(req);if(ctx.access.role!=='administrator')throw Error('FORBIDDEN: Only administrators can manage Google sync');return ctx;}
 export async function db(){if(!env.DB)throw Error('Google connection storage is unavailable');await env.DB.prepare('CREATE TABLE IF NOT EXISTS google_connections (owner TEXT PRIMARY KEY, token TEXT NOT NULL, folder_id TEXT, sheet_id TEXT, last_sync TEXT, lease INTEGER NOT NULL DEFAULT 0)').run();return env.DB;}
 export type Connection={owner:string;token:string;folder_id:string|null;sheet_id:string|null;last_sync:string|null;lease:number};
 export async function connection(owner:string){return (await db()).prepare('SELECT * FROM google_connections WHERE owner=?').bind(owner).first<Connection>();}

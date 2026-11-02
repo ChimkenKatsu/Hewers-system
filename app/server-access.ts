@@ -1,16 +1,18 @@
+import {localSession} from './auth-server';
 import {usesSupabase,sb,eq,rpc,members,ensureWorkspace} from './supabase-server';
 import {env} from 'cloudflare:workers';
 import {emptyState,State} from './model';
 import {Access,Role,visibleState} from './permissions';
 export const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
-export function identity(req:Request){const userId=req.headers.get('oai-authenticated-user-id'),email=req.headers.get('oai-authenticated-user-email')?.toLowerCase().trim();if(!userId||!email)throw Error('AUTH');return {userId,email};}
+export async function identity(req:Request){const session=await localSession(req);if(session){if(session.user.mustChangePassword)throw Error('PASSWORD_REQUIRED: Change your temporary password before opening the workspace');return {userId:session.user.id,email:session.user.username||session.user.email,local:session.user};}const userId=req.headers.get('oai-authenticated-user-id'),email=req.headers.get('oai-authenticated-user-email')?.toLowerCase().trim();if(!userId||!email)throw Error('AUTH');const provisioned=await env.DB!.prepare('SELECT count(*) AS n FROM auth_user WHERE workspace_id=?').bind(userId).first<{n:number}>();if(provisioned?.n)throw Error('AUTH');return {userId,email,local:null};}
 export function originCheck(req:Request){if(req.headers.get('origin')!==new URL(req.url).origin)throw Error('FORBIDDEN: Invalid request origin')}
-export function fail(e:any){const m=e.message||'Request failed';return json({error:m==='AUTH'?'Sign in to access your workspace':m},m==='AUTH'?401:m.startsWith('FORBIDDEN')?403:m.startsWith('CONFLICT')?409:m.startsWith('RATE')?429:400)}
+export function fail(e:any){const m=e.message||'Request failed';return json({error:m==='AUTH'?'Sign in to access your workspace':m},m==='AUTH'?401:m.startsWith('FORBIDDEN')||m.startsWith('PASSWORD_REQUIRED')?403:m.startsWith('CONFLICT')?409:m.startsWith('RATE')?429:400)}
 export async function context(req:Request,requested?:string){
- const user=identity(req);const owner=requested||req.headers.get('x-workspace-id')||user.userId;
+ const user=await identity(req);const owner=requested||req.headers.get('x-workspace-id')||user.local?.workspaceId||user.userId;
+ if(user.local&&owner!==user.local.workspaceId)throw Error('FORBIDDEN: This account belongs to another workspace');
  if(usesSupabase()&&owner===user.userId)await ensureWorkspace(owner,user.email);
  let access:Access={owner,...user,role:'administrator',siteIds:[]};
- if(owner!==user.userId){
+ if(user.local){access={owner,userId:user.userId,email:user.email,role:user.local.role as Role,siteIds:JSON.parse(user.local.siteIds)};}else if(owner!==user.userId){
   const member=usesSupabase()?(await members(owner)).find(m=>m.active&&(m.user_id===user.userId||(!m.user_id&&m.email===user.email))):await env.DB!.prepare("SELECT * FROM memberships WHERE owner=? AND active=1 AND (user_id=? OR (user_id IS NULL AND email=?))").bind(owner,user.userId,user.email).first<any>();
   if(!member)throw Error('FORBIDDEN: You do not have access to this workspace');
   if(!member.user_id){const r=usesSupabase()?{meta:{changes:(await sb('hewers_staff?workspace_id='+eq(owner)+'&id='+eq(member.id)+'&user_id=is.null&active=eq.true','PATCH',{user_id:user.userId},'return=representation')).length}}:await env.DB!.prepare('UPDATE memberships SET user_id=? WHERE id=? AND user_id IS NULL AND active=1').bind(user.userId,member.id).run();if(!r.meta.changes)throw Error('CONFLICT: Membership changed. Reload.');}

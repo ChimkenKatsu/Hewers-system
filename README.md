@@ -7,7 +7,7 @@ Responsive construction operations application using React, TypeScript, Vinext, 
 - Shared workspace memberships: manager, site supervisor, inventory custodian, viewer. The owner is administrator.
 - Server-enforced roles and site scope on reads, writes, face routes and photo access. Revocation takes effect on the next request.
 - Face enrollment, replacement/removal and one-to-one face-assisted time-in/time-out pilot.
-- Sample workspace with role previews. Sample changes are in memory only. Camera enrollment is disabled in sample mode.
+- Saved workspace only, with username/password team accounts and administrator review of auditor worker submissions. See TEAM-ACCESS.md.
 
 ## Face pilot
 Open the real workspace, create a site and test worker, open Attendance > Face recognition. Select Enroll / replace, confirm the worker's permission, start the camera, then capture. Select time-in or time-out to compare two fresh captures with the stored template. A mismatch never records attendance. Remove enrollment using its explicit confirmation control.
@@ -16,11 +16,14 @@ Models and library are served from this application, not an external recognition
 
 Pinned model: @vladmandic/face-api 1.7.15, SSD MobileNet + 68 landmarks + ResNet face descriptors. MIT license preserved in public/vendor. Upstream repository is archived; this is a feasibility pilot, not a commitment to this library for production. No age, gender, emotion or other attribute inference is enabled.
 
-The server checks two finite, correctly-sized descriptors, capture consistency, one-to-one distance threshold 0.5, a single-use 90-second capture challenge, role/site permissions and attempt limits. The threshold has not been calibrated on client workers/devices. Capture tokens prevent request token reuse, not biometric spoofing.
+The server checks two finite, correctly-sized descriptors, capture consistency, all-reference distance threshold 0.4, a single-use 90-second capture challenge, role/site permissions and attempt limits. The threshold has not been calibrated on client workers/devices. Capture tokens prevent request token reuse, not biometric spoofing.
 
 **Not verified liveness or secure biometric attendance.** A malicious authorized client can fabricate/replay descriptor values; photos/screens may match. Supervised testing only. All matched records are labeled Face-assisted pilot, not biometric verified. A production anti-fraud rollout requires trusted capture/validated presentation-attack detection, worker/device evaluation, enrollment controls and retention decisions.
 
-## Staff access
+## Username/password team accounts
+See [TEAM-ACCESS.md](TEAM-ACCESS.md) for the four administrator accounts, assigned-site auditor role, first-login password changes and worker approval notifications.
+
+## Legacy gateway staff access
 1. Owner opens Staff & permissions and enters the staff member's ChatGPT sign-in email, role and assigned sites.
 2. The person also needs permission to visit the private Site through Sites sharing. This app does not invite users or widen Site access automatically.
 3. After signing in, staff select Team workspace from the workspace dropdown.

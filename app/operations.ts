@@ -8,7 +8,21 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  let message='';
  if(action==='site'){const name=text(p.name,'site name');s.sites.push({id,name,location:text(p.location,'location')});message='Created site: '+name;}
  else if(action==='worker'){const name=text(p.name,'worker name');s.workers.push({id,name,trade:text(p.trade,'trade'),siteId:site()});message='Registered worker: '+name;}
+ else if(action==='worker-request'){
+  const name=text(p.name,'worker name'),trade=text(p.trade,'trade'),siteId=site();
+  s.workerRequests??=[];
+  if(s.workerRequests.some(r=>r.status==='pending'&&r.siteId===siteId&&r.name.toLowerCase()===name.toLowerCase()))throw Error('A worker with this name is already waiting for approval at this site');
+  s.workerRequests.push({id,name,trade,siteId,status:'pending',created:now,createdBy:actor});message='Worker approval requested: '+name;
+ }
+ else if(action==='worker-review'){
+  const request=s.workerRequests?.find(r=>r.id===p.requestId);if(!request||request.status!=='pending')throw Error('This request has already been reviewed or is unavailable');
+  if(!['accepted','declined'].includes(p.decision))throw Error('Choose Accept or Decline');
+  request.status=p.decision;request.reviewedAt=now;request.reviewedBy=actor;request.reason=typeof p.reason==='string'?p.reason.trim().slice(0,500):'';
+  if(p.decision==='accepted'){s.workers.push({id,name:request.name,trade:request.trade,siteId:request.siteId});request.workerId=id;}
+  message=(p.decision==='accepted'?'Accepted':'Declined')+' worker request: '+request.name;
+ }
  else if(action==='attendance'){
+
   const w=s.workers.find(x=>x.id===p.workerId);if(!w)throw Error('Select a valid worker');
   const open=s.attendance.find(x=>x.workerId===w.id&&!x.timeOut);
   if(p.type==='in'){if(open)throw Error('This worker already has an open attendance record');s.attendance.push({id,workerId:w.id,siteId:w.siteId,timeIn:now,timeOut:null,method:'Manual',note:text(p.note,'manual attendance reason',500)});message=w.name+' checked in (manual)';}
@@ -30,6 +44,6 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
   s.photos.push({id,siteId,caption:text(p.caption,'caption',500),category:text(p.category,'category',60),url:p.url,created:now,actor,transactionId:p.transactionId||''});message='Uploaded site evidence: '+p.caption;
  }
  else throw Error('Unknown operation');
- const auditSite=p.siteId||s.workers.find(w=>w.id===p.workerId)?.siteId||s.materials.find(m=>m.id===p.materialId)?.siteId;
+ const auditSite=s.workerRequests?.find(r=>r.id===p.requestId)?.siteId||p.siteId||s.workers.find(w=>w.id===p.workerId)?.siteId||s.materials.find(m=>m.id===p.materialId)?.siteId;
  s.audit.unshift({id:uid(),action:message,created:now,actor,siteId:auditSite,kind:action});return s;
 }

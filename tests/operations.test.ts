@@ -22,3 +22,13 @@ assert.throws(()=>applyOperation(s,'worker',{siteId:'unknown',name:'Invalid',tra
 assert.throws(()=>applyOperation(s,'photo',{siteId,url:'/api/photos?key=example',caption:'Example',category:'Delivery',transactionId:'bad'},'QA'),/Transaction/);
 assert.equal(s.audit.length,9);
 console.log('PASS: attendance transitions, negative stock prevention, inventory accounting, site validation, photo linkage, audit trail, immutable failures.');
+
+let pending=applyOperation(s,'worker-request',{name:'Pending worker',trade:'Carpenter',siteId},'auditor1');
+assert.equal(pending.workers.length,s.workers.length);const request=pending.workerRequests![0];
+assert.throws(()=>applyOperation(pending,'attendance',{workerId:request.id,type:'in',note:'pending'},'auditor1'),/valid worker/);
+assert.throws(()=>applyOperation(pending,'worker-request',{name:'Pending worker',trade:'Carpenter',siteId},'auditor1'),/already waiting/);
+const accepted=applyOperation(pending,'worker-review',{requestId:request.id,decision:'accepted'},'admin1');
+assert.equal(accepted.workers.length,pending.workers.length+1);assert.equal(accepted.workerRequests![0].reviewedBy,'admin1');
+assert.throws(()=>applyOperation(accepted,'worker-review',{requestId:request.id,decision:'declined'},'admin2'),/already been reviewed/);
+const declined=applyOperation(pending,'worker-review',{requestId:request.id,decision:'declined'},'admin2');assert.equal(declined.workers.length,pending.workers.length);
+console.log('PASS: pending-worker isolation, duplicate requests, accept/decline, reviewer attribution, double-review denial.');
