@@ -1,0 +1,16 @@
+// Camera frames stay in the browser. Only numerical descriptors go to this site's protected API.
+let ready:Promise<any>|null=null;
+export function loadFaceEngine():Promise<any>{
+ if(ready)return ready;
+ ready=(async()=>{
+  if(!(window as any).faceapi)await new Promise<void>((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/face-api-1.7.15.js';script.onload=()=>resolve();script.onerror=()=>{script.remove();reject(Error('Face engine could not load. Check your connection and try again.'))};document.head.appendChild(script)});
+  const api=(window as any).faceapi;try{if(!await api.tf.setBackend('webgl'))throw Error('WebGL unavailable')}catch{if(!await api.tf.setBackend('cpu'))throw Error('This device cannot start the face engine. Try another browser.')}await api.tf.ready();
+  await Promise.all([api.nets.ssdMobilenetv1.loadFromUri('/face-models'),api.nets.faceLandmark68Net.loadFromUri('/face-models'),api.nets.faceRecognitionNet.loadFromUri('/face-models')]);return api;
+ })().catch(e=>{ready=null;throw e});return ready;
+}
+export async function captureDescriptor(video:HTMLVideoElement){
+ if(!video.videoWidth||video.readyState<2)throw Error('Camera is not ready');
+ const api=await loadFaceEngine();const frame=document.createElement('canvas');frame.width=video.videoWidth;frame.height=video.videoHeight;const context=frame.getContext('2d');if(!context)throw Error('Unable to capture the camera. Try another browser.');context.drawImage(video,0,0);const found=await api.detectAllFaces(frame,new api.SsdMobilenetv1Options({minConfidence:0.75,maxResults:3})).withFaceLandmarks().withFaceDescriptors();
+ if(found.length!==1)throw Error(found.length?'Only one person should be visible in the camera':'No clear face detected. Face the camera in even lighting.');
+ const face=found[0];if(face.detection.box.width<90||face.detection.box.height<90)throw Error('Move a little closer to the camera');return Array.from(face.descriptor) as number[];
+}
