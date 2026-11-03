@@ -6,8 +6,12 @@ account management and worker approvals. The auditor can submit workers,
 use face attendance for approved workers, record stock changes, and upload photos
 only at assigned sites. Pending workers do not enter the worker directory until
 an administrator accepts the request. Declines and approvals retain reviewer and
-time in the audit history. In-app notifications refresh every 15 seconds while
-the workspace is open. No emails or push messages are sent.
+time in the audit history. In-app notifications refresh about every 5 seconds while
+the workspace is open. Admins receive top-right popups for new pending worker
+requests, with Review request and dismiss controls. Review opens and highlights
+the matching Accept/Decline row. Each admin has a separate seen history in that
+browser; only request IDs are stored. Another admin’s completed review removes
+the popup on refresh. No emails or browser push messages are sent.
 
 ## Setup and deployment
 
