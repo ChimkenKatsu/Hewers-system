@@ -13,6 +13,12 @@ React/TypeScript/Vinext application published on Cloudflare Workers. Workspace r
 
 Pending correction and stock-count requests also appear in Notifications. Auditors can submit only for assigned sites and see their own review history. Four admin accounts and one assigned-site auditor account use independent username/password sign-in. See [TEAM-ACCESS.md](TEAM-ACCESS.md).
 
+## Worker queue flow
+
+Enroll each worker once before the shift. For daily attendance choose Time in/out, enable Keep camera on between workers, and use the worker search. After a successful record, Next worker clears the selection while preserving the camera stream. Capture prompts appear above the camera; a capture can be cancelled before the save request starts. Operators should wait for confirmation before moving to the next worker.
+
+The client reuses the first/last forward-facing motion descriptors for the matching pair, reducing recognition calls from eight to six without changing pair, identity, ambiguity or motion thresholds. Readiness includes the same eye-open/centered gates as capture. Recoverable quality problems are shown in the current prompt; inference errors fail immediately. Limits are six challenges per worker/operator/minute and thirty total per operator/minute. Synthetic tests validate flow, not real-device throughput.
+
 ## Face recognition limits
 
 The locally served face-api 1.7.15 engine uses SSD detection, 68 landmarks and 128-dimensional descriptors. Camera images remain on the device; numerical templates go to the protected matching API. Server checks include permissions, strict matching/ambiguity thresholds, consistent captures, rate limits, a single-use challenge and randomized eye/head movements. This browser motion check is not certified presentation-attack detection. Synthetic tests verify the decision logic; accuracy, latency and spoof resistance still require supervised evaluation with enrolled people and the actual devices. No live-camera acceptance test has been completed.

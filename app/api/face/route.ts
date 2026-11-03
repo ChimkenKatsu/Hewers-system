@@ -27,7 +27,10 @@ export async function POST(req:Request){
   if((purpose==='in'&&open)||(purpose==='out'&&!open))return finish(json({error:open?'This worker is already checked in. Choose Time out.':'This worker has no open check-in. Choose Time in.',code:'duplicate'},409),'rejected','duplicate');
  }
  if(p.action==='challenge'){
-  const now=Date.now();const recent=usesSupabase()?{n:(await sb('hewers_face_challenges?workspace_id='+eq(ctx.access.owner)+'&operator_id='+eq(ctx.access.userId)+'&created_at=gt.'+encodeURIComponent(new Date(now-60000).toISOString())+'&select=id')).length}:await env.DB!.prepare('SELECT count(*) AS n FROM face_challenges WHERE owner=? AND user_id=? AND created>?').bind(ctx.access.owner,ctx.access.userId,now-60000).first<any>();if(recent.n>=6)throw Error('RATE: Too many face attempts. Wait one minute.');
+  const now=Date.now();
+  const recent=usesSupabase()?await sb('hewers_face_challenges?workspace_id='+eq(ctx.access.owner)+'&operator_id='+eq(ctx.access.userId)+'&created_at=gt.'+encodeURIComponent(new Date(now-60000).toISOString())+'&select=worker_id'):(await env.DB!.prepare('SELECT worker_id FROM face_challenges WHERE owner=? AND user_id=? AND created>?').bind(ctx.access.owner,ctx.access.userId,now-60000).all<{worker_id:string}>()).results;
+  if(recent.filter((r:{worker_id:string})=>r.worker_id===p.workerId).length>=6)throw Error('RATE: Too many attempts for this worker. Wait one minute before retrying their scan.');
+  if(recent.length>=30)throw Error('RATE: This operator reached the scan limit. Wait one minute.');
   const id=crypto.randomUUID();if(usesSupabase())await sb('hewers_face_challenges','POST',{id,workspace_id:ctx.access.owner,operator_id:ctx.access.userId,worker_id:p.workerId,purpose,created_at:new Date(now).toISOString(),expires_at:new Date(now+90000).toISOString()});else await env.DB!.prepare('INSERT INTO face_challenges (id,owner,user_id,worker_id,purpose,created,expires,used) VALUES (?,?,?,?,?,?,?,0)').bind(id,ctx.access.owner,ctx.access.userId,p.workerId,purpose,now,now+90000).run();return json({challenge:id,expires:now+90000,motion:await motionChallenge({id,owner:ctx.access.owner,operator:ctx.access.userId,worker:p.workerId,purpose,issued:now})});
  }
  if(p.action!=='submit'||p.model!==FACE_MODEL)throw Error('Invalid face submission');

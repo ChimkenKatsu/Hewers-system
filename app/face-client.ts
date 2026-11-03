@@ -35,26 +35,41 @@ async function observe(video:HTMLVideoElement,frontal=true){
 
 const queues=new WeakMap<HTMLVideoElement,Promise<void>>();
 async function exclusive<T>(video:HTMLVideoElement,fn:()=>Promise<T>):Promise<T>{const previous=queues.get(video)||Promise.resolve();let release!:()=>void;const current=new Promise<void>(r=>{release=r});queues.set(video,current);await previous;try{return await fn()}finally{release();if(queues.get(video)===current)queues.delete(video)}}
-export async function inspectCapture(video:HTMLVideoElement){return exclusive(video,async()=>{try{await observe(video);return {ready:true,message:'Face ready. Hold still, then scan.',reason:'none' as const}}catch(e){return {ready:false,message:e instanceof Error?e.message:'Check your camera',reason:scanReason(e)}}})}
+export async function inspectCapture(video:HTMLVideoElement){return exclusive(video,async()=>{try{const face=await observe(video);if(Math.abs(face.yaw)>.14||face.eyeRatio<.19)throw Error('Look straight ahead with both eyes fully open');return {ready:true,message:'Face ready. Hold still, then scan.',reason:'none' as const}}catch(e){return {ready:false,message:e instanceof Error?e.message:'Check your camera',reason:scanReason(e)}}})}
 export async function captureDescriptor(video:HTMLVideoElement){return exclusive(video,async()=>(await observe(video)).describe());}
 export async function captureMotion(video:HTMLVideoElement,actions:MotionAction[],started:number,onPrompt:(s:string)=>void,alive:()=>boolean){
  const evidence:MotionFrame[]=[];
- for(const action of actions){
-  let phase=0,baseline=0;const deadline=Date.now()+25000;
+ for(const [index,action] of actions.entries()){
+  let phase=0,baseline=0,lastHint='';const deadline=Date.now()+25000;
+  const prompt=()=>phase===0?'Look straight ahead with both eyes open':phase===2?'Return to the center and open both eyes':action==='eyes'?'Close BOTH eyes. Keep them closed until this prompt changes':action==='left'?'Turn toward the RIGHT edge of the preview and hold':'Turn toward the LEFT edge of the preview and hold';
   while(phase<3){
    if(!alive())throw Error('Camera check cancelled');
-   if(Date.now()>deadline)throw Error('Camera check timed out. Start again and follow the prompts.');
-   onPrompt(phase===0?'Look straight ahead with both eyes open':phase===2?'Look straight ahead and open your eyes again':action==='eyes'?'Close both eyes and hold for a moment':action==='left'?'Slowly turn your nose toward the right edge of the camera image':'Slowly turn your nose toward the left edge of the camera image');
+   if(Date.now()>deadline)throw Error('Movement check timed out at step '+(index+1)+'/'+actions.length+'. '+prompt()+'. '+lastHint);
+   const label='Step '+(index+1)+'/'+actions.length+' · ';
+   onPrompt(label+prompt());
    try{
     await exclusive(video,async()=>{const f={...await observe(video,false),elapsed:Date.now()-started};
-    const centered=Math.abs(f.yaw)<=.14;
-    const elapsed=phase===0||f.elapsed-evidence.at(-1)!.elapsed>=180;
-    const valid=phase===0?centered&&f.eyeRatio>=.19:phase===2?centered&&f.eyeRatio>=baseline*.85:action==='eyes'?centered&&f.eyeRatio<=Math.min(.16,baseline*.65):action==='left'?f.yaw<=-.24:f.yaw>=.24;
-    if(valid&&elapsed){if(phase===0)baseline=f.eyeRatio;evidence.push({elapsed:f.elapsed,eyeRatio:f.eyeRatio,yaw:f.yaw,descriptor:await f.describe()});phase++;}
+     const centered=Math.abs(f.yaw)<=.14;
+     const elapsed=phase===0||f.elapsed-evidence.at(-1)!.elapsed>=180;
+     const valid=phase===0?centered&&f.eyeRatio>=.19:phase===2?centered&&f.eyeRatio>=baseline*.85:action==='eyes'?centered&&f.eyeRatio<=Math.min(.16,baseline*.65):action==='left'?f.yaw<=-.24:f.yaw>=.24;
+     if(valid&&elapsed){const descriptor=await f.describe();if(!alive())throw Error('Camera check cancelled');if(phase===0)baseline=f.eyeRatio;evidence.push({elapsed:f.elapsed,eyeRatio:f.eyeRatio,yaw:f.yaw,descriptor});phase++;lastHint='';onPrompt(phase===3?label+'Movement captured':label+prompt());}
     });
-   }catch(e){if(!alive())throw e;}
-   await new Promise(resolve=>setTimeout(resolve,120));
+   }catch(e){
+    if(!alive())throw e;
+    // Only recoverable camera-quality problems may retry. Model/inference errors
+    // must fail immediately instead of silently looping until the timeout.
+    if(!['no-face','multiple-faces','too-small','out-of-frame','not-centered','lighting','blur','camera'].includes(scanReason(e)))throw e;
+    lastHint=e instanceof Error?e.message:'Check camera position';onPrompt(label+prompt()+' · '+lastHint);
+   }
+   if(phase<3)await new Promise(resolve=>setTimeout(resolve,80));
   }
  }
  return evidence;
+}
+export async function captureSequence(video:HTMLVideoElement,actions:MotionAction[],started:number,onPrompt:(s:string)=>void,alive:()=>boolean){
+ const frames=await captureMotion(video,actions,started,onPrompt,alive);
+ // The first and last motion frames already face forward with open eyes.
+ // Reuse these independent captures instead of running recognition twice more.
+ const samples=[frames[0].descriptor,frames[frames.length-1].descriptor];
+ return {frames,samples};
 }

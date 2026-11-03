@@ -75,6 +75,18 @@ try{
  const denied=await req('/api/face','POST',{action:'submit',purpose:'in',workerId:workerA,model,samples:[sample,sample],challenge:c.challenge,...(mode==='missing'?{}:{motion:proof})});assert.equal(denied.status,400,JSON.stringify(denied));
  }
  assert.equal((await req('/api/workspace')).state.attendance.length,1,'Rejected motion must not add attendance');
+
+ // Throughput limits isolate repeated attempts for one worker while keeping an operator ceiling.
+ const batchOwner='isolated-batch-owner';await req('/api/workspace','GET',null,batchOwner,batchOwner);
+ const batchState={sites:[{id:'batch-site',name:'Batch site',location:'Test'}],workers:Array.from({length:8},(_,i)=>({id:'batch-worker-'+i,name:'Worker '+i,trade:'Mason',siteId:'batch-site'})),materials:[],attendance:[],movements:[],photos:[],audit:[]};
+ await db.prepare('UPDATE workspaces SET state=? WHERE owner=?').bind(JSON.stringify(batchState),batchOwner).run();
+ const batchChallenge=workerId=>req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId},batchOwner,batchOwner);
+ for(let n=0;n<6;n++)assert.equal((await batchChallenge('batch-worker-0')).status,200);
+ assert.equal((await batchChallenge('batch-worker-0')).status,429,'Repeat attempts for one worker remain limited');
+ assert.equal((await batchChallenge('batch-worker-1')).status,200,'The next worker must not inherit the previous worker retry limit');
+ await db.batch(Array.from({length:23},(_,i)=>db.prepare('INSERT INTO face_challenges(id,owner,user_id,worker_id,purpose,created,expires,used) VALUES(?,?,?,?,?,?,?,0)').bind('batch-seeded-'+i,batchOwner,batchOwner,'batch-worker-2','enroll',Date.now(),Date.now()+90000)));
+ assert.equal((await batchChallenge('batch-worker-7')).status,429,'The total operator ceiling must still apply');
+ console.log('PASS: worker-specific retries and operator throughput cap');
  console.log('PASS: '+(process.env.HEWERS_SUPABASE_TEST?'Supabase':'D1')+' API tests — staff assignment, shared read filtering, cross-site denial, outsider denial, admin-only staff API, face challenge replay rejection, failed match leaves no attendance, matched check-in/out, template metadata privacy, immediate revocation, R2 uploads, cross-site photo denial and CSRF denial.');
 }finally{await mf.dispose()}
 
