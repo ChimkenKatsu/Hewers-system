@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {proxyHewersApi} from '../hosting/vercel/proxy';
+const origin='https://hewers-test.vercel.app',backend='https://hewers-workforce.tristandominicparajes-202200583.workers.dev';
+let calls=0;let target:URL|undefined,options:RequestInit|undefined;
+const upstream:typeof fetch=async(input,init)=>{calls++;target=new URL(String(input));options=init;return new Response('{"ok":true}',{headers:{'content-type':'application/json','set-cookie':'__Secure-hewers.session_token=signed; Path=/; HttpOnly; Secure; SameSite=Lax'}})};
+const req=(path:string,method='GET',headers:Record<string,string>={},body?:string)=>new Request(origin+path,{method,headers,body});
+let r=await proxyHewersApi(req('/api/gateway?__hewers_path=workspace&date=2026-11-03','GET',{'cookie':'signed-cookie','x-workspace-id':'workspace','oai-authenticated-user-id':'forged','authorization':'forged','x-forwarded-host':'evil.test'}),upstream);
+assert.equal(r.status,200);assert.equal(target?.origin,backend);assert.equal(target?.pathname,'/api/workspace');assert.equal(target?.search,'?date=2026-11-03');const h=new Headers(options?.headers);assert.equal(h.get('cookie'),'signed-cookie');assert.equal(h.get('x-workspace-id'),'workspace');assert.equal(h.get('authorization'),null);assert.equal(h.get('oai-authenticated-user-id'),null);assert.equal(h.get('x-forwarded-host'),null);assert.match(r.headers.get('set-cookie')||'',/HttpOnly/);assert.equal(r.headers.get('cache-control'),'private, no-store');
+r=await proxyHewersApi(req('/api/face','POST',{origin,'content-type':'application/json'},'{"purpose":"in"}'),upstream);assert.equal(r.status,200);assert.equal(new Headers(options?.headers).get('origin'),backend);assert.equal(new TextDecoder().decode(options?.body as ArrayBuffer),'{"purpose":"in"}');
+const before=calls;for(const headers of [{origin:'https://evil.test'},{},{origin,'sec-fetch-site':'cross-site'}] as Record<string,string>[])assert.equal((await proxyHewersApi(req('/api/workspace','POST',headers,'{}'),upstream)).status,403);assert.equal(calls,before,'Reject browser CSRF before forwarding');
+for(const path of ['/api/gateway?__hewers_path=//evil.test','/api/gateway?__hewers_path=../secrets','/api/unknown'])assert.equal((await proxyHewersApi(req(path),upstream)).status,404);assert.equal(calls,before);
+r=await proxyHewersApi(req('/api/google/connect','POST',{origin},'workspaceId=test'),upstream);assert.equal(r.status,303);assert.equal(r.headers.get('location'),backend+'/?google=setup');assert.equal(calls,before);
+r=await proxyHewersApi(req('/api/photos','POST',{origin,'content-length':'4400001'},'x'),upstream);assert.equal(r.status,413);assert.equal(calls,before);
+r=await proxyHewersApi(req('/api/workspace'),async()=>{calls++;throw Error('private internal details')});assert.equal(r.status,502);assert.ok(!(await r.text()).includes('private internal details'));assert.equal(calls,before+1,'Never retry a forwarded operation automatically');
+r=await proxyHewersApi(req('/api/auth/sign-out','POST',{origin},'{}'),async()=>new Response(null,{status:303,headers:{location:backend+'/login'}}));assert.equal(r.headers.get('location'),origin+'/login');
+console.log('PASS: fixed upstream, session cookies, request bodies, CSRF denial, header stripping, route allowlist, upload limit, redirects, OAuth handoff and safe failure handling');

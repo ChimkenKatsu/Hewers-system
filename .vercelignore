@@ -1,0 +1,10 @@
+.git
+.vercel
+.openai
+.sites-runtime
+.wrangler
+.dev.vars*
+.env*
+node_modules
+outputs
+work
