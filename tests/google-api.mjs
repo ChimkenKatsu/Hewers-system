@@ -5,7 +5,7 @@ const require=createRequire(import.meta.url),wranglerRequire=createRequire(requi
 const {Miniflare}=wranglerRequire('miniflare');
 const writes=[],uploads=[];let photoSaved=false,refreshes=0;
 const json=(b,status=200)=>Response.json(b,{status});
-const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET'],bindings:{TRUST_SITES_IDENTITY:"true",GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',GOOGLE_REDIRECT_URI:'https://test.local/api/google/callback',GOOGLE_TOKEN_KEY:Buffer.alloc(32,9).toString('base64')},outboundService:async req=>{
+const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET'],bindings:{AUTH_SECRET:"google-test-session-secret-at-least-32-characters",AUTH_BASE_URL:"http://test.local",TRUST_SITES_IDENTITY:"true",GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',GOOGLE_REDIRECT_URI:'https://test.local/api/google/callback',GOOGLE_TOKEN_KEY:Buffer.alloc(32,9).toString('base64')},outboundService:async req=>{
  const u=new URL(req.url);if(u.hostname==='oauth2.googleapis.com'){refreshes++;return json({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600,scope:'https://www.googleapis.com/auth/drive.file'})}
  assert.ok(['www.googleapis.com','sheets.googleapis.com'].includes(u.hostname),'Unexpected outbound request');assert.equal(req.headers.get('Authorization'),'Bearer test-access');
  if(u.pathname==='/drive/v3/files'&&req.method==='GET')return json({files:u.searchParams.get('q')?.includes('hewersPhoto')&&photoSaved?[{id:'photo-1'}]:[]});
@@ -28,7 +28,8 @@ try{
  const consent=new URL(connect.headers.get('Location'));assert.equal(consent.hostname,'accounts.google.com');assert.equal(consent.searchParams.get('scope'),'https://www.googleapis.com/auth/drive.file');
  const state=consent.searchParams.get('state'),cookie=connect.headers.get('Set-Cookie').split(';')[0];
  r=await req('/api/google/callback?code=mock-code&state='+encodeURIComponent(state));assert.equal(r.headers.get('Location'),'/?google=failed&googleReason=state');assert.equal(refreshes,0);
- r=await req('/api/google/callback?code=mock-code&state='+encodeURIComponent(state),'GET',null,{Cookie:cookie});assert.equal(r.headers.get('Location'),'/?google=connected');
+ r=await req('/api/google/callback?code=mock-code&state='+encodeURIComponent(state),'GET',null,{Cookie:cookie});assert.equal(r.status,200);assert.match(r.headers.get('Content-Security-Policy'),/form-action 'self'/);const pendingCookie=r.headers.get('Set-Cookie').split(';')[0];
+ r=await req('/api/google/callback','POST',null,{Cookie:cookie+'; '+pendingCookie});assert.equal(r.headers.get('Location'),'/?google=connected');
  const saved=await db.prepare('SELECT token FROM google_connections WHERE owner=?').bind(owner).first();assert.ok(!saved.token.includes('test-refresh'));assert.ok(!saved.token.includes('test-access'));
  const snapshot={sites:[{id:'s',name:'Site A',location:'Test'}],workers:[{id:'w',name:'Worker A',trade:'Mason',siteId:'s'}],attendance:[{id:'a',workerId:'w',siteId:'s',timeIn:'2026-11-02T00:00:00Z',timeOut:null,method:'Manual',note:'private'}],materials:[{id:'m',name:'Cement',siteId:'s',unit:'bags',balance:3,minimum:5}],movements:[],photos:[{id:'p',siteId:'s',caption:'Site photo',category:'Delivery',url:'/api/photos?key=google-owner%2Fp',created:'2026-11-02T00:00:00Z',actor:'owner',transactionId:''}],audit:[]};
  await db.prepare('UPDATE workspaces SET state=? WHERE owner=?').bind(JSON.stringify(snapshot),owner).run();const bucket=await mf.getR2Bucket('BUCKET');await bucket.put('google-owner/p',new Uint8Array([1,2,3]),{httpMetadata:{contentType:'image/png'}});
@@ -38,6 +39,21 @@ try{
  await db.prepare('INSERT INTO memberships(id,owner,email,user_id,name,role,site_ids,active,created) VALUES(?,?,?,?,?,?,?,?,?)').bind('staff',owner,'staff@example.test','staff','Supervisor','supervisor','["s"]',1,new Date().toISOString()).run();
  assert.equal((await req('/api/google','GET',null,{'oai-authenticated-user-id':'staff','oai-authenticated-user-email':'staff@example.test','x-workspace-id':owner})).status,403);
  assert.equal((await req('/api/google','POST',{action:'disconnect'})).status,200);assert.equal((await (await req('/api/google')).json()).connected,false);
+
+ // OAuth must return to a real named-account session, not only gateway setup headers.
+ let provision=await req('/api/accounts','POST',{action:'provision',siteIds:['s']});assert.equal(provision.status,200);const credentials=(await provision.json()).credentials;
+ const secret=credentials.find(c=>c.username==='admin1').password;
+ let login=await mf.dispatchFetch('http://test.local/api/auth/sign-in/username',{method:'POST',headers:{Origin:'http://test.local','Content-Type':'application/json'},body:JSON.stringify({username:'admin1',password:secret})});assert.equal(login.status,200);
+ let sessionCookie=login.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');
+ let changed=await mf.dispatchFetch('http://test.local/api/account/password',{method:'POST',headers:{Origin:'http://test.local','Content-Type':'application/json',Cookie:sessionCookie},body:JSON.stringify({currentPassword:secret,newPassword:'New-test-google-password-123'})});assert.equal(changed.status,200,await changed.clone().text());if(changed.headers.getSetCookie().length)sessionCookie=changed.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');
+ const namedConnect=await mf.dispatchFetch('http://test.local/api/google/connect',{method:'POST',redirect:'manual',headers:{Origin:'http://test.local',Cookie:sessionCookie,'Content-Type':'application/x-www-form-urlencoded'},body:'workspaceId='+owner});assert.equal(namedConnect.status,303,await namedConnect.clone().text());
+ const namedState=new URL(namedConnect.headers.get('Location')).searchParams.get('state'),nonce=namedConnect.headers.get('Set-Cookie').split(';')[0];
+ const callback=await mf.dispatchFetch('http://test.local/api/google/callback?code=mock-code&state='+encodeURIComponent(namedState),{redirect:'manual',headers:{Cookie:sessionCookie+'; '+nonce,Referer:'https://accounts.google.com/','Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate'}});
+ assert.equal(callback.status,200);const pendingNamed=callback.headers.get('Set-Cookie').split(';')[0];
+ const finish=await req('/api/google/callback','POST',null,{Cookie:sessionCookie+'; '+nonce+'; '+pendingNamed});assert.equal(finish.headers.get('Location'),'/?google=connected','Named account callback must finish in same-origin context');
+ const forged=await mf.dispatchFetch('http://test.local/api/google/callback',{method:'POST',redirect:'manual',headers:{Origin:'https://evil.test',Cookie:sessionCookie+'; '+nonce+'; '+pendingNamed}});assert.match(forged.headers.get('Location'),/google=failed/);
+ const missingNonce=await req('/api/google/callback','POST',null,{Cookie:sessionCookie+'; '+pendingNamed});assert.match(missingNonce.headers.get('Location'),/google=failed/);
+ const noSession=await mf.dispatchFetch('http://test.local/api/google/callback',{method:'POST',redirect:'manual',headers:{Origin:'http://test.local',Cookie:nonce+'; '+pendingNamed}});assert.match(noSession.headers.get('Location'),/google=failed/);
  console.log('PASS: mocked Google OAuth, nonce rejection, encrypted token storage, owner-only access, RAW report export, photo copy/deduplication, completion status and disconnect. No live Google connection was used.');
 }finally{await mf.dispose()}
 
