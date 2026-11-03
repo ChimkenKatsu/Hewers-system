@@ -1,6 +1,6 @@
 # Google Sheets and Drive connection
 
-This is a one-way, owner-triggered export. It does not upload biometric templates.
+This is a one-way, administrator-triggered export. It does not upload biometric templates.
 Files are created in the account selected during Google consent. The app requests
 only `https://www.googleapis.com/auth/drive.file`, for files it creates.
 
@@ -9,7 +9,8 @@ only `https://www.googleapis.com/auth/drive.file`, for files it creates.
 3. Configure Google Auth Platform branding, audience and consent. Add your account
    as a test user while the application is in testing.
 4. Create an OAuth client of type Web application. Add the exact redirect URI:
-   `http://127.0.0.1:5173/api/google/callback`. Production needs its own HTTPS URI.
+   `http://127.0.0.1:5173/api/google/callback`. The published callback is also registered:
+   `https://hewers-workforce.tristandominicparajes-202200583.workers.dev/api/google/callback`.
 5. Put the following in a local `.dev.vars` file (ignored by Git). Replace the values:
 
    ```dotenv
@@ -27,9 +28,9 @@ only `https://www.googleapis.com/auth/drive.file`, for files it creates.
    account, complete consent, then click Sync now. Check both destination links.
 
 Google tokens are encrypted with AES-GCM and workspace-bound authenticated data
-before storage in the private D1 connection table. Only the workspace owner can
+before storage in the private D1 connection table. Only workspace administrators can
 connect, export or disconnect. A short-lived HTTP-only nonce cookie and encrypted
-state bind OAuth to the signed-in owner. Google may expire testing-mode grants;
+state bind OAuth to the signed-in administrator. Google may expire testing-mode grants;
 use Reconnect when needed. Disconnect removes Hewers' stored connection; to revoke
 the provider grant use https://myaccount.google.com/connections . Existing exports
 remain in Google Drive.

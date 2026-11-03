@@ -1,10 +1,11 @@
+import {motionProof} from './face-motion-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,readdir} from 'node:fs/promises';
 const require=createRequire(import.meta.url),wranglerRequire=createRequire(require.resolve('wrangler/package.json'));
 const {Miniflare}=wranglerRequire('miniflare');
 const bindings=process.env.HEWERS_SUPABASE_TEST ? JSON.parse(await new Promise(resolve=>{let s='';process.stdin.on('data',d=>{s+=d;if(s.includes('\n')){process.stdin.pause();resolve(s)}});})) : {};
-const mf=new Miniflare({bindings,...(process.env.HEWERS_SUPABASE_TEST?{outboundService:async r=>{const res=await fetch(r.url,{method:r.method,headers:Object.fromEntries(r.headers),body:['GET','HEAD'].includes(r.method)?undefined:await r.arrayBuffer()});return new Response([204,205,304].includes(res.status)?null:await res.arrayBuffer(),{status:res.status,headers:Object.fromEntries(res.headers)})}}:{}),modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET']});
+const mf=new Miniflare({bindings:{TRUST_SITES_IDENTITY:"true",AUTH_SECRET:"isolated-face-motion-signing-secret-32-characters",...bindings},...(process.env.HEWERS_SUPABASE_TEST?{outboundService:async r=>{const res=await fetch(r.url,{method:r.method,headers:Object.fromEntries(r.headers),body:['GET','HEAD'].includes(r.method)?undefined:await r.arrayBuffer()});return new Response([204,205,304].includes(res.status)?null:await res.arrayBuffer(),{status:res.status,headers:Object.fromEntries(res.headers)})}}:{}),modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET']});
 try{
  const db=await mf.getD1Database('DB');for(const file of (await readdir('drizzle')).filter(f=>f.endsWith('.sql')).sort()){const sql=await readFile('drizzle/'+file,'utf8');for(const part of sql.split(';').map(x=>x.replaceAll('--> statement-breakpoint','').trim()).filter(Boolean))await db.prepare(part).run()}
  async function req(path,method='GET',body=null,user='hewers-integration-owner-2',workspace='hewers-integration-owner-2',email=user+'@example.test'){
@@ -27,23 +28,23 @@ try{
  assert.equal((await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:workerB},'hewers-integration-staff')).status,403);
  const sample=Array(128).fill(.1),other=Array(128).fill(-.1),model='face-api-1.7.15-ssd68-resnet128';
  let challenge=await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:workerA},'hewers-integration-staff');assert.equal(challenge.status,200);
- let submission={action:'submit',purpose:'enroll',workerId:workerA,model,samples:[sample,sample],consent:true,challenge:challenge.challenge};
+ let submission={action:'submit',purpose:'enroll',workerId:workerA,model,samples:[sample,sample],consent:true,motion:motionProof(challenge,sample),challenge:challenge.challenge};
  result=await req('/api/face','POST',submission,'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));
  assert.equal((await req('/api/face','POST',submission,'hewers-integration-staff')).status,400);
  const replacementChallenge=await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:workerA},'hewers-integration-staff');
- assert.equal((await req('/api/face','POST',{...submission,samples:[other,other],challenge:replacementChallenge.challenge},'hewers-integration-staff')).status,422);
+ assert.equal((await req('/api/face','POST',{...submission,samples:[other,other],motion:motionProof(replacementChallenge,other),challenge:replacementChallenge.challenge},'hewers-integration-staff')).status,422);
  assert.equal((await req('/api/workspace')).state.attendance.length,0);
  result=await req('/api/face','GET',null,'hewers-integration-staff');assert.equal(result.enrollments.length,1);assert.ok(!JSON.stringify(result).includes('descriptor'));
  challenge=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId:workerA},'hewers-integration-staff');
- submission={action:'submit',purpose:'in',workerId:workerA,model,samples:[other,other],challenge:challenge.challenge};assert.equal((await req('/api/face','POST',submission,'hewers-integration-staff')).status,422);
+ submission={action:'submit',purpose:'in',workerId:workerA,model,samples:[other,other],motion:motionProof(challenge,other),challenge:challenge.challenge};assert.equal((await req('/api/face','POST',submission,'hewers-integration-staff')).status,422);
  assert.equal((await req('/api/workspace')).state.attendance.length,0);
  challenge=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId:workerA},'hewers-integration-staff');
- result=await req('/api/face','POST',{...submission,samples:[sample,sample],challenge:challenge.challenge},'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));assert.equal(result.state.attendance[0].method,'Face-assisted pilot');
+ result=await req('/api/face','POST',{...submission,samples:[sample,sample],motion:motionProof(challenge,sample),challenge:challenge.challenge},'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));assert.equal(result.state.attendance[0].method,'Face-assisted pilot');
  challenge=await req('/api/face','POST',{action:'challenge',purpose:'out',workerId:workerA},'hewers-integration-staff');
- result=await req('/api/face','POST',{...submission,purpose:'out',samples:[sample,sample],challenge:challenge.challenge},'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));assert.ok(result.state.attendance[0].timeOut);assert.equal(result.state.attendance[0].timeOutMethod,'Face-assisted pilot');
+ result=await req('/api/face','POST',{...submission,purpose:'out',samples:[sample,sample],motion:motionProof(challenge,sample),challenge:challenge.challenge},'hewers-integration-staff');assert.equal(result.status,200,JSON.stringify(result));assert.ok(result.state.attendance[0].timeOut);assert.equal(result.state.attendance[0].timeOutMethod,'Face-assisted pilot');
  // An enrolled face cannot be assigned to another worker, even at a different site.
  const duplicateChallenge=await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:workerB});
- const duplicate=await req('/api/face','POST',{...submission,purpose:'enroll',workerId:workerB,consent:true,samples:[sample,sample],challenge:duplicateChallenge.challenge});
+ const duplicate=await req('/api/face','POST',{...submission,purpose:'enroll',workerId:workerB,consent:true,samples:[sample,sample],motion:motionProof(duplicateChallenge,sample),challenge:duplicateChallenge.challenge});
  assert.equal(duplicate.status,422,JSON.stringify(duplicate));
  assert.equal((await req('/api/face')).enrollments.length,1);
  // Exercise R2 uploads and site authorization against the actual handlers.
@@ -64,6 +65,16 @@ try{
  assert.equal((await req('/api/workspace','GET',null,'hewers-integration-staff')).status,403);
  assert.equal((await req('/api/face','GET',null,'hewers-integration-staff')).status,403);
  const badOrigin=await mf.dispatchFetch('http://test.local/api/workspace',{method:'POST',headers:{'oai-authenticated-user-id':'hewers-integration-owner-2','oai-authenticated-user-email':'owner@example.test','Origin':'https://evil.test','Content-Type':'application/json'},body:'{}'});assert.equal(badOrigin.status,403);
+ // Movement proof is required even when both face descriptors match.
+ for(const mode of ['missing','tampered','static','substitution']){
+ const c=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId:workerA});assert.equal(c.status,200,JSON.stringify(c));
+ const proof=motionProof(c,sample);
+ if(mode==='tampered')proof.token=proof.token.slice(0,-1)+(proof.token.endsWith('A')?'B':'A');
+ if(mode==='static')proof.frames=proof.frames.map(f=>({...f,eyeRatio:.28,yaw:0}));
+ if(mode==='substitution')proof.frames[2].descriptor=other;
+ const denied=await req('/api/face','POST',{action:'submit',purpose:'in',workerId:workerA,model,samples:[sample,sample],challenge:c.challenge,...(mode==='missing'?{}:{motion:proof})});assert.equal(denied.status,400,JSON.stringify(denied));
+ }
+ assert.equal((await req('/api/workspace')).state.attendance.length,1,'Rejected motion must not add attendance');
  console.log('PASS: '+(process.env.HEWERS_SUPABASE_TEST?'Supabase':'D1')+' API tests — staff assignment, shared read filtering, cross-site denial, outsider denial, admin-only staff API, face challenge replay rejection, failed match leaves no attendance, matched check-in/out, template metadata privacy, immediate revocation, R2 uploads, cross-site photo denial and CSRF denial.');
 }finally{await mf.dispose()}
 

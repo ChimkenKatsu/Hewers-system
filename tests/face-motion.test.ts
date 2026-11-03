@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {validateMotion} from '../app/face-motion.ts';
+const descriptor=Array(128).fill(.1),samples=[descriptor,descriptor];
+const frames=[0,1,2,3,4,5].map((n)=>({elapsed:n*200,eyeRatio:n===1?.1:.28,yaw:n===4?.3:0,descriptor}));
+assert.equal(validateMotion(['eyes','right'],frames,samples,2000),true);
+assert.throws(()=>validateMotion(['eyes','left'],frames,samples,2000));
+assert.throws(()=>validateMotion(['eyes','right'],frames.map(f=>({...f,eyeRatio:.28})),samples,2000));
+assert.throws(()=>validateMotion(['eyes','right'],frames.map(f=>({...f,yaw:0})),samples,2000));
+assert.throws(()=>validateMotion(['eyes','right'],frames.map((f,n)=>({...f,descriptor:n===3?Array(128).fill(-.1):descriptor})),samples,2000));
+assert.throws(()=>validateMotion(['eyes','right'],frames.slice(0,3),samples,2000));
+assert.throws(()=>validateMotion(['eyes','right'],frames.map(f=>({...f,elapsed:0})),samples,2000));
+console.log('PASS: ordered eye/head motions, static-photo landmarks, wrong direction, face substitution, missing and replayed frames');

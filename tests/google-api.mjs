@@ -5,7 +5,7 @@ const require=createRequire(import.meta.url),wranglerRequire=createRequire(requi
 const {Miniflare}=wranglerRequire('miniflare');
 const writes=[],uploads=[];let photoSaved=false,refreshes=0;
 const json=(b,status=200)=>Response.json(b,{status});
-const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET'],bindings:{GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',GOOGLE_REDIRECT_URI:'https://test.local/api/google/callback',GOOGLE_TOKEN_KEY:Buffer.alloc(32,9).toString('base64')},outboundService:async req=>{
+const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET'],bindings:{TRUST_SITES_IDENTITY:"true",GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',GOOGLE_REDIRECT_URI:'https://test.local/api/google/callback',GOOGLE_TOKEN_KEY:Buffer.alloc(32,9).toString('base64')},outboundService:async req=>{
  const u=new URL(req.url);if(u.hostname==='oauth2.googleapis.com'){refreshes++;return json({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600,scope:'https://www.googleapis.com/auth/drive.file'})}
  assert.ok(['www.googleapis.com','sheets.googleapis.com'].includes(u.hostname),'Unexpected outbound request');assert.equal(req.headers.get('Authorization'),'Bearer test-access');
  if(u.pathname==='/drive/v3/files'&&req.method==='GET')return json({files:u.searchParams.get('q')?.includes('hewersPhoto')&&photoSaved?[{id:'photo-1'}]:[]});
@@ -27,7 +27,7 @@ try{
  const connect=await mf.dispatchFetch('http://test.local/api/google/connect',{method:'POST',redirect:'manual',headers:{...headers,'Content-Type':'application/x-www-form-urlencoded'},body:''});assert.equal(connect.status,303,(await connect.clone().text()).slice(0,500));
  const consent=new URL(connect.headers.get('Location'));assert.equal(consent.hostname,'accounts.google.com');assert.equal(consent.searchParams.get('scope'),'https://www.googleapis.com/auth/drive.file');
  const state=consent.searchParams.get('state'),cookie=connect.headers.get('Set-Cookie').split(';')[0];
- r=await req('/api/google/callback?code=mock-code&state='+encodeURIComponent(state));assert.equal(r.headers.get('Location'),'/?google=failed');assert.equal(refreshes,0);
+ r=await req('/api/google/callback?code=mock-code&state='+encodeURIComponent(state));assert.equal(r.headers.get('Location'),'/?google=failed&googleReason=state');assert.equal(refreshes,0);
  r=await req('/api/google/callback?code=mock-code&state='+encodeURIComponent(state),'GET',null,{Cookie:cookie});assert.equal(r.headers.get('Location'),'/?google=connected');
  const saved=await db.prepare('SELECT token FROM google_connections WHERE owner=?').bind(owner).first();assert.ok(!saved.token.includes('test-refresh'));assert.ok(!saved.token.includes('test-access'));
  const snapshot={sites:[{id:'s',name:'Site A',location:'Test'}],workers:[{id:'w',name:'Worker A',trade:'Mason',siteId:'s'}],attendance:[{id:'a',workerId:'w',siteId:'s',timeIn:'2026-11-02T00:00:00Z',timeOut:null,method:'Manual',note:'private'}],materials:[{id:'m',name:'Cement',siteId:'s',unit:'bags',balance:3,minimum:5}],movements:[],photos:[{id:'p',siteId:'s',caption:'Site photo',category:'Delivery',url:'/api/photos?key=google-owner%2Fp',created:'2026-11-02T00:00:00Z',actor:'owner',transactionId:''}],audit:[]};

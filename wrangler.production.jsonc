@@ -1,0 +1,14 @@
+{
+  "name": "hewers-workforce",
+  "account_id": "fe5a42bcd0c1ac4feea5af9452252a81",
+  "main": "./dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "no_bundle": true,
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {"directory": "./dist/client"},
+  "rules": [{"type":"ESModule","globs":["**/*.js","**/*.mjs"]}],
+  "d1_databases": [{"binding":"DB","database_name":"hewers-auth","database_id":"9191b024-1b4a-48c8-a31b-89cf970d62c8"}],
+  "vars": {"TRUST_SITES_IDENTITY":"false"}
+}
