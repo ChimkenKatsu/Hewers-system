@@ -38,3 +38,9 @@ Email recovery activation remains deferred until the client supplies real recove
 ## API response recovery
 
 The server reuses its Better Auth configuration to avoid rebuilding authentication endpoints for each API request. Session validity, account activity, roles and assigned sites still come from D1 on every request. Enrollment loading retries a transient GET failure once and offers Retry loading enrollments after a persistent failure. HTML/non-JSON service errors receive readable messages. Attendance writes are never automatically retried; operators must check the attendance log if confirmation is interrupted.
+
+## Pending Supabase staff cleanup
+
+The application no longer uses Supabase gateway-staff memberships; named username accounts remain authoritative. The prepared migration `supabase/migrations/20261103153428_retire_unused_gateway_staff.sql` moves only the two verified-empty legacy tables (`hewers_staff` and `hewers_staff_sites`) and their old write routine out of `public` into an inactive schema. It creates no tables and deletes no records. It stops if rows or dependencies from other tables are found.
+
+Deploy the corresponding application change before applying this migration. The live database migration has not yet been applied. `supabase/retire-unused-staff-rollback.sql` reverses the schema moves. Core workspace records, face enrollments, attendance, inventory, photos, approvals and named-account metadata are retained.

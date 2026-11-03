@@ -1,4 +1,4 @@
-import {usesSupabase,members,sb,eq} from '../../supabase-server';
+import {usesSupabase,sb,eq} from '../../supabase-server';
 import {env} from 'cloudflare:workers';
 import {applyOperation} from '../../operations';
 import {authorize} from '../../permissions';
@@ -7,7 +7,8 @@ export async function GET(req:Request){try{
  const user=await identity(req);
  const ctx=await context(req);
  if(user.local)return json({...await payload(ctx),workspaces:[{id:user.local.workspaceId,label:'Hewers team workspace'}]});
- const rows=usesSupabase()?{results:(await members()).filter(m=>m.active&&(m.user_id===user.userId||(!m.user_id&&m.email===user.email)))}:await env.DB!.prepare('SELECT owner,name,role FROM memberships WHERE active=1 AND (user_id=? OR (user_id IS NULL AND email=?))').bind(user.userId,user.email).all<any>();
+ if(usesSupabase())return json({...await payload(ctx),workspaces:[{id:user.userId,label:'My workspace'}]});
+ const rows=await env.DB!.prepare('SELECT owner,name,role FROM memberships WHERE active=1 AND (user_id=? OR (user_id IS NULL AND email=?))').bind(user.userId,user.email).all<any>();
  return json({...await payload(ctx),workspaces:[{id:user.userId,label:'My workspace'},...rows.results.map(m=>({id:m.owner,label:'Team workspace · '+m.role}))]});
 }catch(e){return fail(e)}}
 export async function POST(req:Request){try{

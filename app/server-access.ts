@@ -1,5 +1,5 @@
 import {localSession} from './auth-server';
-import {usesSupabase,sb,eq,rpc,members,ensureWorkspace} from './supabase-server';
+import {usesSupabase,sb,eq,rpc,ensureWorkspace} from './supabase-server';
 import {env} from 'cloudflare:workers';
 import {emptyState,State} from './model';
 import {Access,Role,visibleState} from './permissions';
@@ -13,9 +13,10 @@ export async function context(req:Request,requested?:string){
  if(usesSupabase()&&(owner===user.userId||(user.local?.workspaceId===owner&&user.local.role==='administrator')))await ensureWorkspace(owner,user.email);
  let access:Access={owner,...user,role:'administrator',siteIds:[]};
  if(user.local){access={owner,userId:user.userId,email:user.email,role:user.local.role as Role,siteIds:JSON.parse(user.local.siteIds)};}else if(owner!==user.userId){
-  const member=usesSupabase()?(await members(owner)).find(m=>m.active&&(m.user_id===user.userId||(!m.user_id&&m.email===user.email))):await env.DB!.prepare("SELECT * FROM memberships WHERE owner=? AND active=1 AND (user_id=? OR (user_id IS NULL AND email=?))").bind(owner,user.userId,user.email).first<any>();
+  if(usesSupabase())throw Error('FORBIDDEN: Supabase team workspaces require a username account. Ask an administrator for access.');
+  const member=await env.DB!.prepare("SELECT * FROM memberships WHERE owner=? AND active=1 AND (user_id=? OR (user_id IS NULL AND email=?))").bind(owner,user.userId,user.email).first<any>();
   if(!member)throw Error('FORBIDDEN: You do not have access to this workspace');
-  if(!member.user_id){const r=usesSupabase()?{meta:{changes:(await sb('hewers_staff?workspace_id='+eq(owner)+'&id='+eq(member.id)+'&user_id=is.null&active=eq.true','PATCH',{user_id:user.userId},'return=representation')).length}}:await env.DB!.prepare('UPDATE memberships SET user_id=? WHERE id=? AND user_id IS NULL AND active=1').bind(user.userId,member.id).run();if(!r.meta.changes)throw Error('CONFLICT: Membership changed. Reload.');}
+  if(!member.user_id){const r=await env.DB!.prepare('UPDATE memberships SET user_id=? WHERE id=? AND user_id IS NULL AND active=1').bind(user.userId,member.id).run();if(!r.meta.changes)throw Error('CONFLICT: Membership changed. Reload.');}
   access={...access,role:member.role as Role,siteIds:JSON.parse(member.site_ids)};
  }
  const row=usesSupabase()?(await sb('hewers_workspaces?id='+eq(owner)+'&select=state,revision,migrated_at')).map((r:any)=>{if(!r.migrated_at)throw Error('The workspace owner must finish migration first');return {...r,state:JSON.stringify(r.state)}})[0]:await env.DB!.prepare('SELECT state,revision FROM workspaces WHERE owner=?').bind(owner).first<any>();

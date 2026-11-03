@@ -16,10 +16,6 @@ export async function storedPhoto(key:string,method='GET',body?:ArrayBuffer,type
  if(!r.ok)throw Error('Photo storage request failed ('+r.status+'). Please try again.');return r;
 }
 export async function registerUpload(owner:string,siteId:string,key:string){await sb('hewers_photo_uploads','POST',{workspace_id:owner,site_id:siteId,storage_path:key},'resolution=merge-duplicates');}
-export async function members(owner?:string):Promise<any[]>{
- const rows=await sb('hewers_staff?select=*&'+(owner?'workspace_id='+eq(owner):'active=eq.true'));
- return Promise.all(rows.map(async(m:any)=>({...m,owner:m.workspace_id,name:m.full_name,created:m.created_at,active:m.active?1:0,site_ids:JSON.stringify((await sb('hewers_staff_sites?workspace_id='+eq(m.workspace_id)+'&staff_id='+eq(m.id)+'&select=site_id')).map((x:any)=>x.site_id))})));
-}
 export async function syncTeamAccounts(owner:string){
  if(!usesSupabase())return;
  const rows=await env.DB!.prepare('SELECT id,username,name,role,site_ids,active,must_change_password FROM auth_user WHERE workspace_id=?').bind(owner).all<{id:string;username:string;name:string;role:string;site_ids:string;active:number;must_change_password:number}>();
@@ -33,7 +29,7 @@ export async function ensureWorkspace(owner:string,email:string){
  const legacy=await env.DB!.prepare('SELECT state,revision FROM workspaces WHERE owner=?').bind(owner).first<any>();
  if(!row){await sb('hewers_workspaces','POST',{id:owner,owner_email:email,state:legacy?JSON.parse(legacy.state):emptyState(),revision:legacy?.revision||0},'resolution=ignore-duplicates');row=(await sb('hewers_workspaces?id='+eq(owner)+'&select=*'))[0];}
  const staff=await env.DB!.prepare('SELECT * FROM memberships WHERE owner=?').bind(owner).all<any>();
- for(const m of staff.results)await rpc('hewers_save_staff',{p_owner:owner,p_staff:{...m,active:!!m.active,siteIds:JSON.parse(m.site_ids)}});
+ if(staff.results.length)throw Error('Legacy staff records must be converted to named accounts before workspace migration. No staff data was discarded.');
  const faces=await env.DB!.prepare('SELECT * FROM face_templates WHERE owner=?').bind(owner).all<any>();
  for(const f of faces.results)await sb('hewers_face_enrollments','POST',{workspace_id:owner,worker_id:f.worker_id,model:'face-api-1.7.15-ssd68-resnet128',descriptors:JSON.parse(f.descriptor),consent_record:f.consent,enrolled_by:f.actor,enrolled_at:f.created},'resolution=ignore-duplicates');
  for(const p of (row.state as State).photos){const key=new URL(p.url,'https://local').searchParams.get('key');if(!key||!key.startsWith(owner+'/'))throw Error('Legacy photo has an invalid workspace path');const old=await env.BUCKET!.get(key);if(!old)throw Error('An existing photo is missing. Migration stopped to protect your records.');await storedPhoto(key,'POST',await old.arrayBuffer(),old.httpMetadata?.contentType);await registerUpload(owner,p.siteId,key);}
