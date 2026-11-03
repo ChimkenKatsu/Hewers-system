@@ -34,3 +34,7 @@ The locally served face-api 1.7.15 engine uses SSD detection, 68 landmarks and 1
 Supabase migrations live in `supabase/migrations`; D1 migrations live in `drizzle`. Apply schema changes before deploying. Production uses `wrangler.production.jsonc`; privileged keys belong only in ignored local server configuration or Worker secrets. Production APIs reject client-supplied identity headers and require a valid named-account session.
 
 Email recovery activation remains deferred until the client supplies real recovery addresses. Native mobile apps, certified anti-spoofing, payroll and formal production acceptance remain future work.
+
+## API response recovery
+
+The server reuses its Better Auth configuration to avoid rebuilding authentication endpoints for each API request. Session validity, account activity, roles and assigned sites still come from D1 on every request. Enrollment loading retries a transient GET failure once and offers Retry loading enrollments after a persistent failure. HTML/non-JSON service errors receive readable messages. Attendance writes are never automatically retried; operators must check the attendance log if confirmation is interrupted.
