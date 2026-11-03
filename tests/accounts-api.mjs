@@ -50,6 +50,14 @@ try{
  assert.equal((await req('/api/scan-diagnostics','POST',{workerId:otherWorker.id,purpose:'in',outcome:'error',reason:'camera'},auditor)).r.status,403);
  assert.equal((await req('/api/workspace','POST',{action:'attendance-correction-request',payload:{...correction,attendanceId:'unknown'},revision:rev},auditor)).r.status,400);
   const accounts=(await req('/api/accounts','GET',null,admin)).b.accounts;const auditorId=accounts.find(a=>a.username==='auditor1').id;
+ assert.equal((await req('/api/accounts','POST',{action:'sites',id:auditorId,siteIds:[siteB]},admin)).r.status,200);
+ assert.deepEqual((await req('/api/workspace','GET',null,auditor)).b.state.sites.map(s=>s.id),[siteB]);
+ const reset=await req('/api/accounts','POST',{action:'reset',id:auditorId},admin);assert.equal(reset.r.status,200);assert.equal(reset.b.credentials[0].username,'auditor1');
+ assert.equal((await req('/api/workspace','GET',null,auditor)).r.status,401,'Reset revokes existing sessions');
+ assert.equal((await req('/api/auth/sign-in/username','POST',{username:'auditor1',password:'New-personal-password-auditor1'})).r.status,401,'Previous password must fail');
+ credentials.find(c=>c.username==='auditor1').password=reset.b.credentials[0].password;auditor=await login('auditor1');
+ assert.match((await req('/api/workspace','GET',null,auditor)).b.error,/PASSWORD_REQUIRED/);
+ auditor=await change('auditor1',auditor);assert.equal((await req('/api/workspace','GET',null,auditor)).r.status,200);
  assert.equal((await req('/api/accounts','POST',{action:'disable',id:auditorId},admin)).r.status,200);assert.equal((await req('/api/workspace','GET',null,auditor)).r.status,401);
  const hashes=await db.prepare('SELECT password FROM auth_account').all();assert.ok(hashes.results.every(a=>credentials.every(c=>a.password!==c.password)));
  console.log('PASS: five distinct accounts, blocked signup, password hashing/first-login change, real sessions, setup bypass blocked, auditor site scope, pending notifications, admin review, double-review denial, and immediate account revocation.');
