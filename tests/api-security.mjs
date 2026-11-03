@@ -65,18 +65,21 @@ try{
  assert.equal((await req('/api/workspace','GET',null,'hewers-integration-staff')).status,403);
  assert.equal((await req('/api/face','GET',null,'hewers-integration-staff')).status,403);
  const badOrigin=await mf.dispatchFetch('http://test.local/api/workspace',{method:'POST',headers:{'oai-authenticated-user-id':'hewers-integration-owner-2','oai-authenticated-user-email':'owner@example.test','Origin':'https://evil.test','Content-Type':'application/json'},body:'{}'});assert.equal(badOrigin.status,403);
- // Movement proof is required even when both face descriptors match.
- for(const mode of ['missing','tampered','static','substitution']){
+ // A signed, single-use capture token and consistent pair are required even when the face matches.
+ for(const mode of ['missing','tampered','substitution']){
  const c=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId:workerA});assert.equal(c.status,200,JSON.stringify(c));
  const proof=motionProof(c,sample);
  if(mode==='tampered')proof.token=proof.token.slice(0,-1)+(proof.token.endsWith('A')?'B':'A');
- if(mode==='static')proof.frames=proof.frames.map(f=>({...f,eyeRatio:.28,yaw:0}));
- if(mode==='substitution')proof.frames[2].descriptor=other;
+ if(mode==='substitution')proof.frames[1].descriptor=other;
  const denied=await req('/api/face','POST',{action:'submit',purpose:'in',workerId:workerA,model,samples:[sample,sample],challenge:c.challenge,...(mode==='missing'?{}:{motion:proof})});assert.equal(denied.status,400,JSON.stringify(denied));
  }
  assert.equal((await req('/api/workspace')).state.attendance.length,1,'Rejected motion must not add attendance');
 
- // Throughput limits isolate repeated attempts for one worker while keeping an operator ceiling.
+ // Stationary captures intentionally need no blink/head action, but still match the enrolled identity.
+ const still=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId:workerA});assert.equal(still.status,200);assert.equal(still.motion.captureMode,'pair');assert.deepEqual(still.motion.actions,[]);
+ const stillProof=motionProof(still,sample);assert.equal(stillProof.frames.length,2);
+ const stillResult=await req('/api/face','POST',{action:'submit',purpose:'in',workerId:workerA,model,samples:[sample,sample],challenge:still.challenge,motion:stillProof});assert.equal(stillResult.status,200,JSON.stringify(stillResult));
+  // Throughput limits isolate repeated attempts for one worker while keeping an operator ceiling.
  const batchOwner='isolated-batch-owner';await req('/api/workspace','GET',null,batchOwner,batchOwner);
  const batchState={sites:[{id:'batch-site',name:'Batch site',location:'Test'}],workers:Array.from({length:8},(_,i)=>({id:'batch-worker-'+i,name:'Worker '+i,trade:'Mason',siteId:'batch-site'})),materials:[],attendance:[],movements:[],photos:[],audit:[]};
  await db.prepare('UPDATE workspaces SET state=? WHERE owner=?').bind(JSON.stringify(batchState),batchOwner).run();

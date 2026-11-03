@@ -10,7 +10,7 @@ import {applyOperation} from '../../operations';
 export async function GET(req:Request){try{
  const ctx=await context(req);if(ctx.access.role==='custodian')throw Error('FORBIDDEN: Attendance access is unavailable for this role');
  const rows=usesSupabase()?{results:(await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&select=worker_id,enrolled_at,enrolled_by')).map((r:any)=>({...r,created:r.enrolled_at,actor:r.enrolled_by}))}:await env.DB!.prepare('SELECT worker_id,created,actor FROM face_templates WHERE owner=?').bind(ctx.access.owner).all<any>();
- return json({enrollments:rows.results.filter((row:any)=>ctx.state.workers.some(w=>w.id===row.worker_id&&hasSite(ctx.access,w.siteId))).map((row:any)=>({workerId:row.worker_id,created:row.created,actor:row.actor})),model:FACE_MODEL,pilot:true,motionCheck:true});
+ return json({enrollments:rows.results.filter((row:any)=>ctx.state.workers.some(w=>w.id===row.worker_id&&hasSite(ctx.access,w.siteId))).map((row:any)=>({workerId:row.worker_id,created:row.created,actor:row.actor})),model:FACE_MODEL,pilot:true,motionCheck:false,captureMode:'pair'});
 }catch(e){return fail(e)}}
 export async function POST(req:Request){
  let report:Parameters<typeof recordDiagnostic>[1]|undefined,access:Parameters<typeof recordDiagnostic>[0]|undefined;const serverStarted=Date.now();
@@ -51,7 +51,7 @@ export async function POST(req:Request){
 
  if(!template)throw Error('This worker has not been enrolled');
  if(!matches(samples,JSON.parse(template.descriptor)))return finish(json({code:'mismatch',error:'Face did not match the selected worker. No attendance was recorded.'},422),'rejected','mismatch');
- const state=applyOperation(ctx.state,'attendance',{workerId:p.workerId,type:purpose,note:'Face-assisted pilot · browser descriptor match and randomized motion check; anti-spoofing not certified'},ctx.access.email);
+ const state=applyOperation(ctx.state,'attendance',{workerId:p.workerId,type:purpose,note:'Face-assisted pilot · two stationary face captures; no liveness check'},ctx.access.email);
  const attendance=purpose==='in'?state.attendance[state.attendance.length-1]:state.attendance.find(x=>x.workerId===p.workerId&&!ctx.state.attendance.find(y=>y.id===x.id)?.timeOut);
  if(!attendance)throw Error('Attendance record unavailable');
  if(purpose==='in')attendance.method='Face-assisted pilot';else attendance.timeOutMethod='Face-assisted pilot';

@@ -12,7 +12,7 @@ const api={tf:{setBackend:async()=>true,ready:async()=>{}},nets:Object.fromEntri
   // Every other poll deliberately fails the eye/head action; descriptors must
   // only run after the landmark gate accepts a frame.
   const active=detections%2===0,ratio=mode==='eyes-closed'?.1:active&&prompt.includes('Close BOTH')?.1:.28;
-  const yaw=active&&prompt.includes('LEFT edge')?.3:0;
+  const yaw=active&&prompt.includes('LEFT')?.3:0;
   return [{detection:{box:{x:40,y:40,width:220,height:220}},landmarks:{getLeftEye:()=>eye(100,ratio),getRightEye:()=>eye(160,ratio),getNose:()=>[{}, {}, {}, {x:130+yaw*60,y:130}],align:(_n:unknown,options:{useDlibAlignment:boolean})=>{assert.equal(options.useDlibAlignment,true);aligned++;return {}}}}];
  }};},
  extractFaces:async()=>{const version=frameVersion;await new Promise(r=>setTimeout(r,1));assert.equal(frameVersion,version,'Guidance and capture must not overwrite a frame during recognition');return [{}]},computeFaceDescriptor:async()=>{descriptions++;return descriptor;},
@@ -31,7 +31,8 @@ try{
  const before=descriptions;const guidance=await inspectCapture(video);assert.equal(guidance.ready,true);assert.equal(descriptions,before,'Guidance must not run recognition');
  const captures=await Promise.all([captureDescriptor(video),inspectCapture(video),captureDescriptor(video)]);assert.deepEqual(captures[0],descriptor);assert.deepEqual(captures[2],descriptor);assert.equal(canvases,1);
  const beforeSequence=descriptions;const sequence=await captureSequence(video,['eyes','right'],clock,s=>prompt=s,()=>true);assert.equal(descriptions-beforeSequence,6,'Use six motion descriptors, not eight separate captures');assert.equal(sequence.samples[0],sequence.frames[0].descriptor);assert.equal(sequence.samples[1],sequence.frames[5].descriptor);validatePair(sequence.samples);assert.equal(validateMotion(['eyes','right'],sequence.frames,sequence.samples,70000),true);
- mode='eyes-closed';assert.equal((await inspectCapture(video)).ready,false,'Readiness must check the same open-eye requirement as motion capture');
+ mode='eyes-closed';assert.equal((await inspectCapture(video)).ready,true,'Natural eye shape must not block a head-turn check');
+ const beforeStill=descriptions;const still=await captureSequence(video,[],clock,s=>prompt=s,()=>true);assert.equal(descriptions-beforeStill,2,'Stationary capture should run recognition twice');assert.equal(still.frames.length,2);validatePair(still.samples);
  mode='gpu-error';const beforeFailure=detections;await assert.rejects(()=>captureMotion(video,['eyes','right'],clock,s=>prompt=s,()=>true),/Tensor backend failed/);assert.equal(detections-beforeFailure,1,'Inference errors must fail immediately');
  mode='normal';await assert.rejects(()=>captureMotion(video,['eyes','right'],clock,()=>{},()=>false),/cancelled/);
  console.log(`PASS: ${detections} landmark polls use only ${descriptions} recognition calls; same Dlib alignment and reusable canvas`);

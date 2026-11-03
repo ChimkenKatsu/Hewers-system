@@ -17,3 +17,15 @@ export function validateMotion(actions:MotionAction[],frames:MotionFrame[],sampl
  });
  return true;
 }
+
+// A stationary pair checks capture consistency, not liveness or presentation attacks.
+export function validateStationary(frames:MotionFrame[],samples:number[][],availableMs:number){
+ if(!Array.isArray(frames)||frames.length!==2)throw Error('Two clear face captures are required');
+ let previous=-1;
+ for(const [i,f] of frames.entries()){
+  if(!Number.isFinite(f.elapsed)||f.elapsed<=previous||f.elapsed<0||f.elapsed>20000||f.elapsed>availableMs+1500||!Number.isFinite(f.yaw)||Math.abs(f.yaw)>.22||!Number.isFinite(f.eyeRatio)||f.eyeRatio<0||f.eyeRatio>1)throw Error('Look directly at the camera and hold still');
+  validateDescriptor(f.descriptor);if(distance(f.descriptor,samples[i])>0.000001)throw Error('Face capture evidence does not match the submitted samples');previous=f.elapsed;
+ }
+ if(frames[1].elapsed-frames[0].elapsed<300)throw Error('Hold still for the second face capture');
+ return true;
+}

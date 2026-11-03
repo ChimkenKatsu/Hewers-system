@@ -1,4 +1,5 @@
 import type {MotionAction,MotionFrame} from './face-motion';
+import {validatePair} from './face-math';
 import {scanReason} from './scan-reasons';
 import {checkFaceQuality} from './face-quality';
 // Camera frames stay in the browser. Only numerical descriptors go to this site's protected API.
@@ -35,7 +36,7 @@ async function observe(video:HTMLVideoElement,frontal=true){
 
 const queues=new WeakMap<HTMLVideoElement,Promise<void>>();
 async function exclusive<T>(video:HTMLVideoElement,fn:()=>Promise<T>):Promise<T>{const previous=queues.get(video)||Promise.resolve();let release!:()=>void;const current=new Promise<void>(r=>{release=r});queues.set(video,current);await previous;try{return await fn()}finally{release();if(queues.get(video)===current)queues.delete(video)}}
-export async function inspectCapture(video:HTMLVideoElement){return exclusive(video,async()=>{try{const face=await observe(video);if(Math.abs(face.yaw)>.14||face.eyeRatio<.19)throw Error('Look straight ahead with both eyes fully open');return {ready:true,message:'Face ready. Hold still, then scan.',reason:'none' as const}}catch(e){return {ready:false,message:e instanceof Error?e.message:'Check your camera',reason:scanReason(e)}}})}
+export async function inspectCapture(video:HTMLVideoElement){return exclusive(video,async()=>{try{const face=await observe(video);return {ready:true,message:'Face ready. Hold still, then scan.',reason:'none' as const}}catch(e){return {ready:false,message:e instanceof Error?e.message:'Check your camera',reason:scanReason(e)}}})}
 export async function captureDescriptor(video:HTMLVideoElement){return exclusive(video,async()=>(await observe(video)).describe());}
 export async function captureMotion(video:HTMLVideoElement,actions:MotionAction[],started:number,onPrompt:(s:string)=>void,alive:()=>boolean){
  const evidence:MotionFrame[]=[];
@@ -67,9 +68,22 @@ export async function captureMotion(video:HTMLVideoElement,actions:MotionAction[
  return evidence;
 }
 export async function captureSequence(video:HTMLVideoElement,actions:MotionAction[],started:number,onPrompt:(s:string)=>void,alive:()=>boolean){
- const frames=await captureMotion(video,actions,started,onPrompt,alive);
- // The first and last motion frames already face forward with open eyes.
+ const frames=actions.length===0?await captureStationary(video,started,onPrompt,alive):await captureMotion(video,actions,started,onPrompt,alive);
+ // The first and last motion frames already face forward.
  // Reuse these independent captures instead of running recognition twice more.
  const samples=[frames[0].descriptor,frames[frames.length-1].descriptor];
  return {frames,samples};
+}
+
+async function captureStationary(video:HTMLVideoElement,started:number,onPrompt:(message:string)=>void,alive:()=>boolean){
+ const frames:MotionFrame[]=[];const deadline=Date.now()+10000;let hint='';
+ while(frames.length<2){
+  if(!alive())throw Error('Camera check cancelled');
+  if(Date.now()>deadline)throw Error('Could not capture a clear face. '+(hint||'Use even lighting, face the camera and hold still.'));
+  onPrompt(frames.length?'Hold still · taking the second capture':'Look at the camera · capturing your face');
+  try{await exclusive(video,async()=>{const f=await observe(video);const elapsed=Date.now()-started,descriptor=await f.describe();if(!alive())throw Error('Camera check cancelled');if(frames.length)validatePair([frames[0].descriptor,descriptor]);frames.push({elapsed,eyeRatio:f.eyeRatio,yaw:f.yaw,descriptor})});}
+  catch(e){if(!alive())throw e;const reason=scanReason(e);if(!['no-face','multiple-faces','too-small','out-of-frame','not-centered','lighting','blur','camera','inconsistent'].includes(reason))throw e;hint=e instanceof Error?e.message:'Face the camera';if(reason==='inconsistent')frames.length=0;onPrompt(hint);}
+  if(frames.length<2)await new Promise(resolve=>setTimeout(resolve,frames.length?350:180));
+ }
+ return frames;
 }
