@@ -1,0 +1,10 @@
+export const scanReasons={
+ 'none':'Completed','no-face':'No clear face detected','multiple-faces':'More than one face visible','too-small':'Face too far from camera','out-of-frame':'Face outside camera view','not-centered':'Head not centered or level','lighting':'Poor lighting','blur':'Blurred image','inconsistent':'Captures were inconsistent','motion':'Movement check incomplete or invalid','mismatch':'Face did not match enrollment','ambiguous':'Too similar to another enrollment','not-enrolled':'Worker has no enrollment','duplicate':'Attendance action already recorded','expired':'Capture expired or was reused','camera':'Camera unavailable or permission denied','network':'Connection interrupted','invalid':'Invalid capture data','server':'Request could not complete',
+} as const;
+export type ScanReason=keyof typeof scanReasons;
+export function scanReason(error:unknown):ScanReason{
+ if(typeof error==='object'&&error&&'code' in error&&typeof error.code==='string'&&Object.hasOwn(scanReasons,error.code))return error.code as ScanReason;
+ const text=(error instanceof Error?error.message:String(error)).toLowerCase();
+ if(/too similar|another enrollment/.test(text))return 'ambiguous';if(/did not match|does not match/.test(text))return 'mismatch';if(/not.*enrolled/.test(text))return 'not-enrolled';if(/already.*attendance|open attendance|no open attendance|already checked/.test(text))return 'duplicate';
+ if(/expired|already used/.test(text))return 'expired';if(/inconsistent/.test(text))return 'inconsistent';if(/motion|movement|eyes|same person|camera check timed/.test(text))return 'motion';if(/no clear face|no face/.test(text))return 'no-face';if(/one person|multiple/.test(text))return 'multiple-faces';if(/closer/.test(text))return 'too-small';if(/whole face|inside.*view/.test(text))return 'out-of-frame';if(/straight|head level/.test(text))return 'not-centered';if(/lighting|shadows/.test(text))return 'lighting';if(/blurry|blur/.test(text))return 'blur';if(/descriptor|capture data/.test(text))return 'invalid';if(/network|fetch|connection/.test(text))return 'network';if(/camera|permission/.test(text))return 'camera';return 'server';
+}

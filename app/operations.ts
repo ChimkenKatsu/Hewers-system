@@ -1,6 +1,8 @@
 import type {State} from './model';
+import {applyReviewOperation,reviewActions} from './review-operations';
 const uid=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
 export function applyOperation(original:State,action:string,p:any,actor:string,now=new Date().toISOString()):State{
+ if(reviewActions.includes(action))return applyReviewOperation(original,action,p,actor,now);
  const s:State=structuredClone(original),id=uid();
  const text=(v:any,label:string,max=240)=>{if(typeof v!=='string'||!v.trim()||v.length>max)throw Error('Enter a valid '+label);return v.trim()};
  const num=(v:any,label:string,allowZero=false)=>{const n=Number(v);if(!Number.isFinite(n)||(allowZero?n<0:n<=0)||n>1e9)throw Error('Enter a valid '+label);return Math.round(n*1000)/1000};

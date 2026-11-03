@@ -1,0 +1,7 @@
+'use client';
+import type {State} from './model';
+import {dailySummary} from './daily-summary';
+export default function DailySummary({data,date,siteId,onOpen}:{data:State;date:string;siteId:string;onOpen:(page:string)=>void}){
+ const rows=dailySummary(data,date,siteId);
+ return <section className="panel daily-summary"><div className="panel-head"><div><h2>Daily site summary</h2><p>{date} · Philippine Time. Attendance, movements and photos use this date; on-site, stock and approvals show the current position.</p></div><button className="text-btn" onClick={()=>onOpen('Notifications')}>Review approvals →</button></div><div className="table-scroll"><table><thead><tr><th>SITE</th><th>WORKERS ATTENDED</th><th>ON SITE NOW</th><th>STOCK UPDATES</th><th>SITE PHOTOS</th><th>LOW STOCK NOW</th><th>PENDING APPROVALS</th></tr></thead><tbody>{rows.map(r=><tr key={r.site.id}><td><strong>{r.site.name}</strong><small>{r.site.location}</small></td><td>{r.attended} / {r.workers}</td><td>{r.onSite}</td><td><button className="text-btn" onClick={()=>onOpen('Materials')}>{r.movements} updates</button></td><td><button className="text-btn" onClick={()=>onOpen('Site evidence')}>{r.photos} photos</button></td><td><span className={'badge '+(r.lowStock?'amber':'green')}>{r.lowStock}</span></td><td><button className="text-btn" onClick={()=>onOpen('Notifications')}>{r.pending} pending</button></td></tr>)}</tbody></table>{!rows.length&&<p className="approval-empty">Add a site to see its daily summary.</p>}</div></section>;
+}

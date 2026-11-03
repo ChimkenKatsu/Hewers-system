@@ -1,3 +1,5 @@
+import {recordDiagnostic,diagnosticId} from '../../scan-diagnostics-server';
+import {scanReason} from '../../scan-reasons';
 import {motionChallenge,checkMotion} from '../../face-motion-server';
 import {usesSupabase,sb,eq} from '../../supabase-server';
 import {env} from 'cloudflare:workers';
@@ -10,12 +12,20 @@ export async function GET(req:Request){try{
  const rows=usesSupabase()?{results:(await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&select=worker_id,enrolled_at,enrolled_by')).map((r:any)=>({...r,created:r.enrolled_at,actor:r.enrolled_by}))}:await env.DB!.prepare('SELECT worker_id,created,actor FROM face_templates WHERE owner=?').bind(ctx.access.owner).all<any>();
  return json({enrollments:rows.results.filter((row:any)=>ctx.state.workers.some(w=>w.id===row.worker_id&&hasSite(ctx.access,w.siteId))).map((row:any)=>({workerId:row.worker_id,created:row.created,actor:row.actor})),model:FACE_MODEL,pilot:true,motionCheck:true});
 }catch(e){return fail(e)}}
-export async function POST(req:Request){try{
+export async function POST(req:Request){
+ let report:Parameters<typeof recordDiagnostic>[1]|undefined,access:Parameters<typeof recordDiagnostic>[0]|undefined;const serverStarted=Date.now();
+ async function finish(response:Response,outcome:'matched'|'rejected'|'error',reason:Parameters<typeof recordDiagnostic>[1]['reason']){if(report&&access)await recordDiagnostic(access,{...report,outcome,reason,serverMs:Date.now()-serverStarted});return response}
+ try{
  originCheck(req);if(Number(req.headers.get('content-length'))>120000)throw Error('Request too large');
  const p=await req.json() as any,ctx=await context(req);
  const purpose=p.purpose;if(!['enroll','in','out','remove'].includes(purpose))throw Error('Invalid face operation');
  authorize(ctx.access,ctx.state,purpose==='enroll'?'face-enroll':purpose==='remove'?'face-delete':'face-check',{workerId:p.workerId});
  if(purpose==='remove'){if(usesSupabase())await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&worker_id='+eq(p.workerId),'DELETE');else await env.DB!.prepare('DELETE FROM face_templates WHERE owner=? AND worker_id=?').bind(ctx.access.owner,p.workerId).run();return json({ok:true,message:'Enrollment removed'})}
+ if(p.action==='challenge'||p.action==='submit'){
+  access=ctx.access;const worker=ctx.state.workers.find(w=>w.id===p.workerId)!;report={id:diagnosticId(p.attemptId),workerId:p.workerId,siteId:worker.siteId,purpose,outcome:'error',reason:'server',source:'server'};
+  const open=ctx.state.attendance.some(a=>a.workerId===p.workerId&&!a.timeOut);
+  if((purpose==='in'&&open)||(purpose==='out'&&!open))return finish(json({error:open?'This worker is already checked in. Choose Time out.':'This worker has no open check-in. Choose Time in.',code:'duplicate'},409),'rejected','duplicate');
+ }
  if(p.action==='challenge'){
   const now=Date.now();const recent=usesSupabase()?{n:(await sb('hewers_face_challenges?workspace_id='+eq(ctx.access.owner)+'&operator_id='+eq(ctx.access.userId)+'&created_at=gt.'+encodeURIComponent(new Date(now-60000).toISOString())+'&select=id')).length}:await env.DB!.prepare('SELECT count(*) AS n FROM face_challenges WHERE owner=? AND user_id=? AND created>?').bind(ctx.access.owner,ctx.access.userId,now-60000).first<any>();if(recent.n>=6)throw Error('RATE: Too many face attempts. Wait one minute.');
   const id=crypto.randomUUID();if(usesSupabase())await sb('hewers_face_challenges','POST',{id,workspace_id:ctx.access.owner,operator_id:ctx.access.userId,worker_id:p.workerId,purpose,created_at:new Date(now).toISOString(),expires_at:new Date(now+90000).toISOString()});else await env.DB!.prepare('INSERT INTO face_challenges (id,owner,user_id,worker_id,purpose,created,expires,used) VALUES (?,?,?,?,?,?,?,0)').bind(id,ctx.access.owner,ctx.access.userId,p.workerId,purpose,now,now+90000).run();return json({challenge:id,expires:now+90000,motion:await motionChallenge({id,owner:ctx.access.owner,operator:ctx.access.userId,worker:p.workerId,purpose,issued:now})});
@@ -28,21 +38,21 @@ export async function POST(req:Request){try{
  // Templates remain on the server; ambiguous identities never create attendance.
  const allTemplates=usesSupabase()?(await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&select=worker_id,descriptors')).map((r:any)=>({worker_id:r.worker_id,descriptor:JSON.stringify(r.descriptors)})):(await env.DB!.prepare('SELECT worker_id,descriptor FROM face_templates WHERE owner=?').bind(ctx.access.owner).all<any>()).results;
  const template=allTemplates.find((row:{worker_id:string})=>row.worker_id===p.workerId);
- for(const other of allTemplates){if(other.worker_id===p.workerId)continue;let references:number[][];try{references=validatePair(JSON.parse(other.descriptor))}catch{throw Error('A stored face enrollment needs review. Ask your administrator to re-enroll it.')}if(samples.some(sample=>references.some(reference=>distance(sample,reference)<=0.45)))return json({error:'This capture is too similar to another enrollment. No record was saved. Ask your administrator to review the enrollments.'},422);}
+ for(const other of allTemplates){if(other.worker_id===p.workerId)continue;let references:number[][];try{references=validatePair(JSON.parse(other.descriptor))}catch{throw Error('A stored face enrollment needs review. Ask your administrator to re-enroll it.')}if(samples.some(sample=>references.some(reference=>distance(sample,reference)<=0.45)))return finish(json({code:'ambiguous',error:'This capture is too similar to another enrollment. No record was saved. Ask your administrator to review the enrollments.'},422),'rejected','ambiguous');}
  if(purpose==='enroll'){
-  if(template&&!matches(samples,JSON.parse(template.descriptor)))return json({error:'This face does not match the existing enrollment. No changes were saved. Ask an authorized operator to remove the enrollment after verifying the worker’s identity.'},422);
+  if(template&&!matches(samples,JSON.parse(template.descriptor)))return finish(json({code:'mismatch',error:'This face does not match the existing enrollment. No changes were saved. Ask an authorized operator to remove the enrollment after verifying the worker’s identity.'},422),'rejected','mismatch');
   if(p.consent!==true)throw Error('Confirm the worker has agreed to pilot enrollment');
   if(usesSupabase())await sb('hewers_face_enrollments?on_conflict=workspace_id,worker_id','POST',{workspace_id:ctx.access.owner,worker_id:p.workerId,model:FACE_MODEL,descriptors:samples,consent_record:'Pilot enrollment confirmed by operator',enrolled_by:ctx.access.email,enrolled_at:new Date().toISOString()},'resolution=merge-duplicates');else await env.DB!.prepare('INSERT INTO face_templates (id,owner,worker_id,descriptor,created,actor,consent) VALUES (?,?,?,?,?,?,?) ON CONFLICT(owner,worker_id) DO UPDATE SET descriptor=excluded.descriptor,created=excluded.created,actor=excluded.actor,consent=excluded.consent').bind(crypto.randomUUID(),ctx.access.owner,p.workerId,JSON.stringify(samples),new Date().toISOString(),ctx.access.email,'Pilot enrollment confirmed by operator').run();
-  return json({ok:true,message:'Face enrolled for pilot matching'});
+  return finish(json({ok:true,message:'Face enrolled for pilot matching'}),'matched','none');
  }
 
  if(!template)throw Error('This worker has not been enrolled');
- if(!matches(samples,JSON.parse(template.descriptor)))return json({error:'Face did not match the selected worker. No attendance was recorded.'},422);
+ if(!matches(samples,JSON.parse(template.descriptor)))return finish(json({code:'mismatch',error:'Face did not match the selected worker. No attendance was recorded.'},422),'rejected','mismatch');
  const state=applyOperation(ctx.state,'attendance',{workerId:p.workerId,type:purpose,note:'Face-assisted pilot · browser descriptor match and randomized motion check; anti-spoofing not certified'},ctx.access.email);
  const attendance=purpose==='in'?state.attendance[state.attendance.length-1]:state.attendance.find(x=>x.workerId===p.workerId&&!ctx.state.attendance.find(y=>y.id===x.id)?.timeOut);
  if(!attendance)throw Error('Attendance record unavailable');
  if(purpose==='in')attendance.method='Face-assisted pilot';else attendance.timeOutMethod='Face-assisted pilot';
  state.audit[0].action=state.audit[0].action.replace('(manual)','(face-assisted pilot)');state.audit[0].kind='face-check';
- return json({...await commit(ctx,state),ok:true,message:'Face matched · attendance recorded as a pilot entry'});
-}catch(e){return fail(e)}}
+ return finish(json({...await commit(ctx,state),ok:true,message:'Face matched · attendance recorded as a pilot entry'}),'matched','none');
+}catch(e){return finish(fail(e),'error',scanReason(e))}}
 

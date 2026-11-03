@@ -1,4 +1,5 @@
 import type {MotionAction,MotionFrame} from './face-motion';
+import {scanReason} from './scan-reasons';
 import {checkFaceQuality} from './face-quality';
 // Camera frames stay in the browser. Only numerical descriptors go to this site's protected API.
 let ready:Promise<any>|null=null;
@@ -32,7 +33,10 @@ async function observe(video:HTMLVideoElement,frontal=true){
 }
 
 
-export async function captureDescriptor(video:HTMLVideoElement){return (await observe(video)).describe();}
+const queues=new WeakMap<HTMLVideoElement,Promise<void>>();
+async function exclusive<T>(video:HTMLVideoElement,fn:()=>Promise<T>):Promise<T>{const previous=queues.get(video)||Promise.resolve();let release!:()=>void;const current=new Promise<void>(r=>{release=r});queues.set(video,current);await previous;try{return await fn()}finally{release();if(queues.get(video)===current)queues.delete(video)}}
+export async function inspectCapture(video:HTMLVideoElement){return exclusive(video,async()=>{try{await observe(video);return {ready:true,message:'Face ready. Hold still, then scan.',reason:'none' as const}}catch(e){return {ready:false,message:e instanceof Error?e.message:'Check your camera',reason:scanReason(e)}}})}
+export async function captureDescriptor(video:HTMLVideoElement){return exclusive(video,async()=>(await observe(video)).describe());}
 export async function captureMotion(video:HTMLVideoElement,actions:MotionAction[],started:number,onPrompt:(s:string)=>void,alive:()=>boolean){
  const evidence:MotionFrame[]=[];
  for(const action of actions){
@@ -42,11 +46,12 @@ export async function captureMotion(video:HTMLVideoElement,actions:MotionAction[
    if(Date.now()>deadline)throw Error('Camera check timed out. Start again and follow the prompts.');
    onPrompt(phase===0?'Look straight ahead with both eyes open':phase===2?'Look straight ahead and open your eyes again':action==='eyes'?'Close both eyes and hold for a moment':action==='left'?'Slowly turn your nose toward the right edge of the camera image':'Slowly turn your nose toward the left edge of the camera image');
    try{
-    const f={...await observe(video,false),elapsed:Date.now()-started};
+    await exclusive(video,async()=>{const f={...await observe(video,false),elapsed:Date.now()-started};
     const centered=Math.abs(f.yaw)<=.14;
     const elapsed=phase===0||f.elapsed-evidence.at(-1)!.elapsed>=180;
     const valid=phase===0?centered&&f.eyeRatio>=.19:phase===2?centered&&f.eyeRatio>=baseline*.85:action==='eyes'?centered&&f.eyeRatio<=Math.min(.16,baseline*.65):action==='left'?f.yaw<=-.24:f.yaw>=.24;
     if(valid&&elapsed){if(phase===0)baseline=f.eyeRatio;evidence.push({elapsed:f.elapsed,eyeRatio:f.eyeRatio,yaw:f.yaw,descriptor:await f.describe()});phase++;}
+    });
    }catch(e){if(!alive())throw e;}
    await new Promise(resolve=>setTimeout(resolve,120));
   }

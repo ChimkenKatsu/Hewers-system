@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {applyReviewOperation as op} from '../app/review-operations';
+import {emptyState} from '../app/model';
+import {authorize,visibleState,type Access} from '../app/permissions';
+import {dailySummary,fromPhtInput,toPhtInput} from '../app/daily-summary';
+const now='2026-11-03T10:00:00.000Z';
+const s=emptyState();s.sites=[{id:'s',name:'Site',location:'Test'},{id:'other',name:'Other',location:'Test'}];s.workers=[{id:'w',name:'Worker',trade:'Mason',siteId:'s'}];s.attendance=[{id:'a',workerId:'w',siteId:'s',timeIn:'2026-11-02T23:00:00.000Z',timeOut:'2026-11-03T08:00:00.000Z',method:'Face-assisted pilot',note:'Original'}];s.materials=[{id:'m',siteId:'s',name:'Cement',unit:'bags',balance:10,minimum:8}];
+const payload={attendanceId:'a',expectedIn:s.attendance[0].timeIn,expectedOut:s.attendance[0].timeOut,proposedIn:'2026-11-02T23:05:00.000Z',proposedOut:s.attendance[0].timeOut,reason:'Correct arrival clock discrepancy'};
+let requested=op(s,'attendance-correction-request',payload,'auditor1',now),id=requested.attendanceCorrections![0].id;
+assert.deepEqual(requested.attendance,s.attendance);assert.equal(s.attendanceCorrections,undefined);
+assert.throws(()=>op(requested,'attendance-correction-request',payload,'auditor1',now),/pending/);
+assert.throws(()=>op(requested,'attendance-correction-review',{requestId:id,decision:'accepted'},'auditor1',now),/Another/);
+let accepted=op(requested,'attendance-correction-review',{requestId:id,decision:'accepted'},'admin1',now);assert.equal(accepted.attendance[0].timeIn,payload.proposedIn);assert.equal(accepted.attendance[0].method,'Face-assisted pilot');assert.equal(accepted.attendance[0].correctionId,id);assert.equal(accepted.attendanceCorrections![0].originalIn,s.attendance[0].timeIn);
+assert.throws(()=>op(accepted,'attendance-correction-review',{requestId:id,decision:'accepted'},'admin2',now),/already/);
+let stale=structuredClone(requested);stale.attendance[0].timeOut='2026-11-03T09:00:00.000Z';assert.throws(()=>op(stale,'attendance-correction-review',{requestId:id,decision:'accepted'},'admin1',now),/CONFLICT/);
+assert.equal(op(requested,'attendance-correction-review',{requestId:id,decision:'declined'},'admin1',now).attendance[0].timeIn,s.attendance[0].timeIn);
+assert.throws(()=>op(s,'attendance-correction-request',{...payload,expectedIn:'wrong'},'auditor1',now),/CONFLICT/);
+assert.throws(()=>op(s,'attendance-correction-request',{...payload,proposedOut:'2026-11-04T08:00:00Z'},'auditor1',now),/future/);
+assert.throws(()=>op(s,'attendance-correction-request',{...payload,proposedOut:payload.proposedIn},'auditor1',now),/later/);
+const overlap=structuredClone(s);overlap.attendance.push({...s.attendance[0],id:'a2',timeIn:'2026-11-03T09:00:00Z',timeOut:null});assert.throws(()=>op(overlap,'attendance-correction-request',{...payload,proposedOut:'2026-11-03T09:30:00Z'},'auditor1',now),/overlap/);
+for(const count of [7,13,10]){const r=op(s,'stock-count-request',{materialId:'m',expectedBalance:10,countedBalance:count,reason:'Physical count by site auditor'},'auditor1',now);assert.equal(r.materials[0].balance,10);const rId=r.stockReconciliations![0].id;const a=op(r,'stock-count-review',{requestId:rId,decision:'accepted'},'admin1',now);assert.equal(a.materials[0].balance,count);assert.equal(a.movements.length,count===10?0:1);if(count!==10){assert.equal(a.movements[0].adjustmentDelta,count-10);assert.equal(a.movements[0].quantity,Math.abs(count-10));}const changed=structuredClone(r);changed.materials[0].balance++;assert.throws(()=>op(changed,'stock-count-review',{requestId:rId,decision:'accepted'},'admin1',now),/CONFLICT/);}
+for(const bad of [-1,NaN,Infinity,'',false,'  '])assert.throws(()=>op(s,'stock-count-request',{materialId:'m',expectedBalance:10,countedBalance:bad,reason:'Physical count test'},'auditor1',now),/valid/);
+const auditor:Access={owner:'test',userId:'auditor',email:'auditor1',role:'auditor',siteIds:['s']};authorize(auditor,s,'attendance-correction-request',payload);assert.throws(()=>authorize(auditor,requested,'attendance-correction-review',{requestId:id}),/FORBIDDEN/);assert.throws(()=>authorize({...auditor,siteIds:['other']},s,'stock-count-request',{materialId:'m'}),/FORBIDDEN/);assert.equal(visibleState(requested,auditor).attendanceCorrections!.length,1);assert.equal(visibleState(requested,{...auditor,email:'other'}).attendanceCorrections!.length,0);
+assert.equal(dailySummary(s,'2026-11-03')[0].attended,1);assert.equal(dailySummary(s,'2026-11-02')[0].attended,0);assert.equal(dailySummary(s,'2026-11-03','other').length,1);assert.equal(dailySummary(requested,'2026-11-03')[0].pending,1);assert.equal(fromPhtInput('2026-11-03T07:00'),s.attendance[0].timeIn);assert.equal(toPhtInput(s.attendance[0].timeIn),'2026-11-03T07:00');assert.throws(()=>fromPhtInput('2026-02-30T07:00'),/valid/);
+console.log('PASS: correction review, immutable originals, overlap/future/stale rejection, stock adjustments, self-approval denial, assigned-site permissions and PHT summaries');

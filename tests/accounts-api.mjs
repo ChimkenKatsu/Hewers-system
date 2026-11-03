@@ -32,7 +32,24 @@ try{
  state=await op('material',{name:'Cement',unit:'bags',balance:10,minimum:2,siteId:siteA},admin);const material=state.materials[0];
  state=await op('movement',{materialId:material.id,type:'Delivery',quantity:5,note:'Auditor delivery'},auditor);assert.equal(state.materials[0].balance,15);
  state=await op('movement',{materialId:material.id,type:'Issue',quantity:3,note:'Auditor issue'},auditor);assert.equal(state.materials[0].balance,12);
- const accounts=(await req('/api/accounts','GET',null,admin)).b.accounts;const auditorId=accounts.find(a=>a.username==='auditor1').id;
+
+ // New approval workflows are tested through real authenticated routes.
+ state=await op('attendance',{workerId:state.workers[0].id,type:'in',note:'Isolated test entry'},admin);const attendance=state.attendance[0],workerId=attendance.workerId;
+ let duplicate=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId,attemptId:'duplicate-attempt-0001'},auditor);assert.equal(duplicate.r.status,409);assert.equal(duplicate.b.code,'duplicate');
+ const correction={attendanceId:attendance.id,expectedIn:attendance.timeIn,expectedOut:null,proposedIn:new Date(Date.parse(attendance.timeIn)-60000).toISOString(),proposedOut:null,reason:'Correct site arrival time discrepancy'};
+ state=await op('attendance-correction-request',correction,auditor);const correctionId=state.attendanceCorrections[0].id;assert.equal(state.attendance[0].timeIn,attendance.timeIn);
+ assert.equal((await req('/api/workspace','POST',{action:'attendance-correction-review',payload:{requestId:correctionId,decision:'accepted'},revision:rev},auditor)).r.status,403);
+ state=await op('attendance-correction-review',{requestId:correctionId,decision:'accepted'},admin);assert.equal(state.attendance[0].timeIn,correction.proposedIn);
+ state=await op('stock-count-request',{materialId:material.id,expectedBalance:12,countedBalance:9,reason:'Counted bags physically at site'},auditor);const stockId=state.stockReconciliations[0].id;assert.equal(state.materials[0].balance,12);
+ state=await op('stock-count-review',{requestId:stockId,decision:'accepted'},admin);assert.equal(state.materials[0].balance,9);assert.equal(state.movements.at(-1).adjustmentDelta,-3);
+ // A device report may add timings, but cannot change a server decision.
+ result=await req('/api/scan-diagnostics','POST',{id:'duplicate-attempt-0001',workerId,purpose:'in',outcome:'matched',reason:'none',durationMs:320,device:'Desktop',browser:'Chrome',descriptor:[1,2,3]},auditor);assert.equal(result.r.status,200,JSON.stringify(result.b));
+ let reports=(await req('/api/scan-diagnostics','GET',null,auditor)).b.rows;assert.equal(reports.length,1);assert.equal(reports[0].outcome,'rejected');assert.equal(reports[0].reason,'duplicate');assert.equal(reports[0].source,'server');assert.equal(reports[0].duration_ms,320);assert.ok(!JSON.stringify(reports).includes('descriptor'));
+ result=await req('/api/scan-diagnostics','POST',{id:'invalid-report-0001',workerId,purpose:'in',outcome:'error',reason:'toString'},auditor);assert.equal(result.r.status,400);
+ const otherWorker=(await op('worker',{name:'Other Site Worker',trade:'Mason',siteId:siteB},admin)).workers.find(w=>w.siteId===siteB);
+ assert.equal((await req('/api/scan-diagnostics','POST',{workerId:otherWorker.id,purpose:'in',outcome:'error',reason:'camera'},auditor)).r.status,403);
+ assert.equal((await req('/api/workspace','POST',{action:'attendance-correction-request',payload:{...correction,attendanceId:'unknown'},revision:rev},auditor)).r.status,400);
+  const accounts=(await req('/api/accounts','GET',null,admin)).b.accounts;const auditorId=accounts.find(a=>a.username==='auditor1').id;
  assert.equal((await req('/api/accounts','POST',{action:'disable',id:auditorId},admin)).r.status,200);assert.equal((await req('/api/workspace','GET',null,auditor)).r.status,401);
  const hashes=await db.prepare('SELECT password FROM auth_account').all();assert.ok(hashes.results.every(a=>credentials.every(c=>a.password!==c.password)));
  console.log('PASS: five distinct accounts, blocked signup, password hashing/first-login change, real sessions, setup bypass blocked, auditor site scope, pending notifications, admin review, double-review denial, and immediate account revocation.');

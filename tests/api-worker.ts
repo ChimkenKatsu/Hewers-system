@@ -1,3 +1,4 @@
+import * as diagnostics from '../app/api/scan-diagnostics/route';
 import * as accounts from '../app/api/accounts/route';
 import * as password from '../app/api/account/password/route';
 import * as auth from '../app/api/auth/[...all]/route';
@@ -8,4 +9,4 @@ import * as workspace from '../app/api/workspace/route';
 import * as staff from '../app/api/staff/route';
 import * as face from '../app/api/face/route';
 import * as photos from '../app/api/photos/route';
-export default {fetch(request:Request){const routes:any={'/api/accounts':accounts,'/api/account/password':password,'/api/google':google,'/api/google/connect':googleConnect,'/api/google/callback':googleCallback,'/api/workspace':workspace,'/api/staff':staff,'/api/face':face,'/api/photos':photos};return (new URL(request.url).pathname.startsWith('/api/auth/')?auth:routes[new URL(request.url).pathname])?.[request.method]?.(request)||new Response('Not found',{status:404})}};
+export default {fetch(request:Request){const routes:any={'/api/scan-diagnostics':diagnostics,'/api/accounts':accounts,'/api/account/password':password,'/api/google':google,'/api/google/connect':googleConnect,'/api/google/callback':googleCallback,'/api/workspace':workspace,'/api/staff':staff,'/api/face':face,'/api/photos':photos};return (new URL(request.url).pathname.startsWith('/api/auth/')?auth:routes[new URL(request.url).pathname])?.[request.method]?.(request)||new Response('Not found',{status:404})}};

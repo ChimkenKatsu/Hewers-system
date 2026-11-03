@@ -1,54 +1,30 @@
-# SiteLedger — Phase 1 development release
+# Hewers — site operations
 
-Responsive construction operations application using React, TypeScript, Vinext, D1 and R2. Hosted as a private Sites application.
+React/TypeScript/Vinext application published on Cloudflare Workers. Workspace records, approval history, face enrollments and photos use Supabase. Named-account passwords and sessions remain in private D1. Google sync exports attendance and inventory to Sheets and copies site photos to Drive; face templates are excluded.
 
-## Working modules
-- Construction sites, worker registration, manual attendance, inventory movements, low-stock indicators, photo evidence, CSV reports.
-- Shared workspace memberships: manager, site supervisor, inventory custodian, viewer. The owner is administrator.
-- Server-enforced roles and site scope on reads, writes, face routes and photo access. Revocation takes effect on the next request.
-- Face enrollment, replacement/removal and one-to-one face-assisted time-in/time-out pilot.
-- Saved workspace only, with username/password team accounts and administrator review of auditor worker submissions. See TEAM-ACCESS.md.
+## Six operations improvements
 
-## Face pilot
-Open the real workspace, create a site and test worker, open Attendance > Face recognition. Select Enroll / replace, confirm the worker's permission, start the camera, then capture. Select time-in or time-out to compare two fresh captures with the stored template. A mismatch never records attendance. Remove enrollment using its explicit confirmation control.
+1. **Live face guidance:** Attendance → Scan attendance. The camera checks single-face visibility, size, pose, lighting and blur before enabling capture. Guidance and recognition share a serialized capture queue so frames cannot overwrite an active recognition task. Matching thresholds remain strict.
+2. **Scan diagnostics:** Attendance → Scan diagnostics. Admins see workspace reports; auditors see their own reports for assigned sites. Reports contain safe failure categories, durations, coarse device/browser/connection information and a server/device source label. They contain no images or descriptors. The view shows the latest 200 reports within seven days; timings are device-reported and do not measure identity accuracy.
+3. **Duplicate protection:** The face screen shows current checked-in status and selects the appropriate next action. The server rejects an invalid attendance transition before issuing a scan challenge. Existing revision checks prevent concurrent writes from recording two entries.
+4. **Attendance corrections:** Attendance → Correction requests. Select an existing record, propose PHT times and give a reason. Only an admin decision changes attendance. Original/requested times, requester, decision, reviewer and reason remain in history. Overlaps, future times and stale records are rejected. An admin cannot accept their own request.
+5. **Physical stock counts:** Materials inventory → Physical counts. Compare the physical quantity with the captured system balance and explain the count. Admin acceptance creates a signed Adjustment movement and updates stock. A changed balance requires a new count. Zero differences are recorded without creating a zero-quantity movement.
+6. **Daily site summary:** Home shows attendance, current workers on site, dated stock updates/photos, current low stock and pending approvals. The selected site/date applies; current-position columns are explicitly labelled.
 
-Models and library are served from this application, not an external recognition API. Camera frames stay in the browser. Numerical 128-dimensional descriptors are sent to the protected server for enrollment/matching. Templates are stored in D1, are not returned by API, and are retained until removed. This does not include automated retention or backup deletion workflows.
+Pending correction and stock-count requests also appear in Notifications. Auditors can submit only for assigned sites and see their own review history. Four admin accounts and one assigned-site auditor account use independent username/password sign-in. See [TEAM-ACCESS.md](TEAM-ACCESS.md).
 
-Pinned model: @vladmandic/face-api 1.7.15, SSD MobileNet + 68 landmarks + ResNet face descriptors. MIT license preserved in public/vendor. Upstream repository is archived; this is a feasibility pilot, not a commitment to this library for production. No age, gender, emotion or other attribute inference is enabled.
+## Face recognition limits
 
-The server checks two finite, correctly-sized descriptors, capture consistency, all-reference distance threshold 0.4, a single-use 90-second capture challenge, role/site permissions and attempt limits. The threshold has not been calibrated on client workers/devices. Capture tokens prevent request token reuse, not biometric spoofing.
+The locally served face-api 1.7.15 engine uses SSD detection, 68 landmarks and 128-dimensional descriptors. Camera images remain on the device; numerical templates go to the protected matching API. Server checks include permissions, strict matching/ambiguity thresholds, consistent captures, rate limits, a single-use challenge and randomized eye/head movements. This browser motion check is not certified presentation-attack detection. Synthetic tests verify the decision logic; accuracy, latency and spoof resistance still require supervised evaluation with enrolled people and the actual devices. No live-camera acceptance test has been completed.
 
-**Not verified liveness or secure biometric attendance.** A malicious authorized client can fabricate/replay descriptor values; photos/screens may match. Supervised testing only. All matched records are labeled Face-assisted pilot, not biometric verified. A production anti-fraud rollout requires trusted capture/validated presentation-attack detection, worker/device evaluation, enrollment controls and retention decisions.
+## Validation
 
-## Username/password team accounts
-See [TEAM-ACCESS.md](TEAM-ACCESS.md) for the four administrator accounts, assigned-site auditor role, first-login password changes and worker approval notifications.
-
-## Legacy gateway staff access
-1. Owner opens Staff & permissions and enters the staff member's ChatGPT sign-in email, role and assigned sites.
-2. The person also needs permission to visit the private Site through Sites sharing. This app does not invite users or widen Site access automatically.
-3. After signing in, staff select Team workspace from the workspace dropdown.
-
-Role matrix:
-- Administrator (owner): all sites and operations, staff administration.
-- Manager: read assigned sites.
-- Supervisor: workers, attendance, face enrollment and photos for assigned sites; view materials.
-- Custodian: materials and photos for assigned sites; no worker/attendance access.
-- Viewer: read assigned sites; no mutations.
-
-A staff member may also have an unrelated personal workspace. They cannot use its administrator status to access the owner's workspace.
-
-## Verification
 - `npx tsc --noEmit`
-- `node --experimental-strip-types tests/operations.test.ts`
-- `node --experimental-strip-types tests/security.test.ts`
-- `node_modules/.bin/esbuild tests/api-worker.ts --bundle --format=esm --platform=browser --external:cloudflare:workers --outfile=.sites-runtime/api-test-worker.mjs`
-- `node tests/api-security.mjs`
+- `npm run build`
+- Bundle `tests/api-worker.ts` with esbuild into `.sites-runtime/api-test-worker.mjs`, then run `node tests/api-security.mjs`, `node tests/accounts-api.mjs`, `node tests/google-api.mjs`, and `node tests/hosted-security.mjs`.
+- Bundle/run `tests/reviews.test.ts` and `tests/face-client.test.ts` for corrections, counts, PHT summaries and serialized camera guidance.
+- `supabase/verify-operation-reviews.sql` verifies projections, signed adjustments and denied public privileges inside a rolled-back fixture transaction.
 
-The integration suite runs the real route handlers in isolated Miniflare D1/R2. It tests role/site authorization, revoked and anonymous callers, CSRF, membership binding, face challenge reuse, synthetic matching/non-matching descriptors, attendance transitions, and protected photo upload/access. No real face images or biometric templates are included in test fixtures. Actual browser models have loaded successfully; a consenting person's live camera match remains a device test.
+Supabase migrations live in `supabase/migrations`; D1 migrations live in `drizzle`. Apply schema changes before deploying. Production uses `wrangler.production.jsonc`; privileged keys belong only in ignored local server configuration or Worker secrets. Production APIs reject client-supplied identity headers and require a valid named-account session.
 
-## Development
-Use the Sites installation/build helpers. DB binding is DB; R2 binding is BUCKET. Schema is db/schema.ts; append migrations rather than altering applied SQL. Production identity must come from Sites' protected gateway, never public client-supplied headers.
-
-The initial workspace document is JSON in D1 with optimistic revision checks. Before broad multi-user rollout, normalize records, paginate queries, add operational monitoring, backups and retention controls. Memberships, templates and capture challenges are separate tables. Unreferenced uploads and expired challenges need lifecycle cleanup for production.
-
-Still outside this release: Google Sheets/Drive sync, native apps, BOQ validation, payroll, full progress reporting, automated invitation emails, validated liveness/anti-spoofing and formal production acceptance.
+Email recovery activation remains deferred until the client supplies real recovery addresses. Native mobile apps, certified anti-spoofing, payroll and formal production acceptance remain future work.
