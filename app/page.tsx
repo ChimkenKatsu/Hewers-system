@@ -4,6 +4,7 @@ import {readApiJson} from './api-client';
 import {Home,ClipboardCheck,Users,Package,Camera,FileText,Settings,Bell,LogOut,Building2,Plus,ArrowUpRight,ArrowDownLeft,ArrowRight,Search,Download,Check,ShieldCheck,AlertTriangle,X,Menu,MapPin,RefreshCw,ScanFace,HardHat,Layers,CheckCircle2,ImagePlus} from 'lucide-react';
 import {State,emptyState,day} from './model';
 import {photoLimitMb} from './hosting';
+import {downloadText} from './download-text';
 import FacePanel from './FacePanel';
 import DailySummary from './DailySummary';
 import ReviewPanel from './ReviewPanel';
@@ -83,7 +84,7 @@ export default function App(){
  else if(kind==='Inventory')rows=[['Material','Site','Unit','Balance','Minimum'],...materials.map(x=>[x.name,siteName(x.siteId),x.unit,x.balance,x.minimum])];
  else rows=[['Material','Site','Type','Quantity','Reference / reason','Recorded at','Recorded by'],...data.movements.filter(relevant).map(x=>[materialName(x.materialId),siteName(x.siteId),x.type,x.adjustmentDelta??x.quantity,x.note,new Date(x.created).toLocaleString('en-PH',{timeZone:'Asia/Manila'}),x.actor])];
  const safe=(v:any)=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'};
- const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(safe).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Hewers-'+kind+'-'+date+'.csv';a.click();URL.revokeObjectURL(url);setToast('Report exported');
+ downloadText('\uFEFF'+rows.map(r=>r.map(safe).join(',')).join('\r\n'),'Hewers-'+kind+'-'+date+'.csv','text/csv;charset=utf-8');setToast('Export ready. Choose where to save it.');
  }
  const faceAttendance=()=>{setPage('Attendance');setTab('Face recognition');setQuery('');setError('');setMobile(false)};
  const go=(name:string)=>{setPage(name);setTab(name==='Attendance'?'Attendance log':'Stock overview');setQuery('');setError('');setMobile(false)};
