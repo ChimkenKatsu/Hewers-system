@@ -19,6 +19,7 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  else if(action==='worker-review'){
   const request=s.workerRequests?.find(r=>r.id===p.requestId);if(!request||request.status!=='pending')throw Error('This request has already been reviewed or is unavailable');
   if(!['accepted','declined'].includes(p.decision))throw Error('Choose Accept or Decline');
+  if(p.decision==='declined')text(p.reason,'decline reason',500);
   request.status=p.decision;request.reviewedAt=now;request.reviewedBy=actor;request.reason=typeof p.reason==='string'?p.reason.trim().slice(0,500):'';
   if(p.decision==='accepted'){s.workers.push({id,name:request.name,trade:request.trade,siteId:request.siteId});request.workerId=id;}
   message=(p.decision==='accepted'?'Accepted':'Declined')+' worker request: '+request.name;

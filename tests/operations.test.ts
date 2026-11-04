@@ -30,5 +30,5 @@ assert.throws(()=>applyOperation(pending,'worker-request',{name:'Pending worker'
 const accepted=applyOperation(pending,'worker-review',{requestId:request.id,decision:'accepted'},'admin1');
 assert.equal(accepted.workers.length,pending.workers.length+1);assert.equal(accepted.workerRequests![0].reviewedBy,'admin1');
 assert.throws(()=>applyOperation(accepted,'worker-review',{requestId:request.id,decision:'declined'},'admin2'),/already been reviewed/);
-const declined=applyOperation(pending,'worker-review',{requestId:request.id,decision:'declined'},'admin2');assert.equal(declined.workers.length,pending.workers.length);
+const declined=applyOperation(pending,'worker-review',{requestId:request.id,decision:'declined',reason:'Missing worker details'},'admin2');assert.equal(declined.workers.length,pending.workers.length);
 console.log('PASS: pending-worker isolation, duplicate requests, accept/decline, reviewer attribution, double-review denial.');

@@ -49,6 +49,16 @@ try{
  const otherWorker=(await op('worker',{name:'Other Site Worker',trade:'Mason',siteId:siteB},admin)).workers.find(w=>w.siteId===siteB);
  assert.equal((await req('/api/scan-diagnostics','POST',{workerId:otherWorker.id,purpose:'in',outcome:'error',reason:'camera'},auditor)).r.status,403);
  assert.equal((await req('/api/workspace','POST',{action:'attendance-correction-request',payload:{...correction,attendanceId:'unknown'},revision:rev},auditor)).r.status,400);
+ assert.equal((await req('/api/notifications')).r.status,401);
+ assert.equal((await req('/api/notifications','POST',{ids:[pending.id+':submitted']},auditor)).r.status,403);
+ assert.equal((await req('/api/notifications','POST',{ids:[pending.id+':submitted']},admin)).r.status,200);
+ assert.deepEqual((await req('/api/notifications','GET',null,auditor)).b.readIds,[],'Read history is per account');
+ assert.equal((await req('/api/notifications','POST',{ids:[pending.id+':accepted']},auditor)).r.status,200);
+ assert.deepEqual((await req('/api/notifications','GET',null,admin)).b.readIds,[pending.id+':submitted']);
+ state=await op('worker',{name:'Needs correction',trade:'Mason',siteId:siteA},auditor);const toDecline=state.workerRequests.find(r=>r.name==='Needs correction');
+ assert.equal((await req('/api/workspace','POST',{action:'worker-review',payload:{requestId:toDecline.id,decision:'declined'},revision:rev},admin)).r.status,400,'Decline reason is enforced on the server');
+ state=await op('worker-review',{requestId:toDecline.id,decision:'declined',reason:'Please correct the worker name'},admin);
+ assert.equal((await req('/api/workspace','GET',null,auditor)).b.state.workerRequests.find(r=>r.id===toDecline.id).reason,'Please correct the worker name');
   const accounts=(await req('/api/accounts','GET',null,admin)).b.accounts;const auditorId=accounts.find(a=>a.username==='auditor1').id;
  assert.equal((await req('/api/accounts','POST',{action:'sites',id:auditorId,siteIds:[siteB]},admin)).r.status,200);
  assert.deepEqual((await req('/api/workspace','GET',null,auditor)).b.state.sites.map(s=>s.id),[siteB]);

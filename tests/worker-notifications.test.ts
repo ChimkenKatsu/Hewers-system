@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {workerNotifications} from '../app/worker-notifications';
+import {receiveWorkerPopups,popupSnapshot,dismissWorkerPopup} from '../app/worker-popup-store';
+import type {WorkerRequest} from '../app/model';
+const rows:WorkerRequest[]=[{id:'p',name:'Pending',trade:'Mason',siteId:'s',status:'pending',created:'2026-11-04T01:00:00Z',createdBy:'auditor1'},{id:'a',name:'Accepted',trade:'Mason',siteId:'s',status:'accepted',created:'2026-11-04T01:00:00Z',createdBy:'auditor1',reviewedBy:'admin1',reviewedAt:'2026-11-04T02:00:00Z'},{id:'d',name:'Declined',trade:'Mason',siteId:'s',status:'declined',created:'2026-11-04T01:00:00Z',createdBy:'auditor2',reviewedBy:'admin1',reason:'Wrong site',reviewedAt:'2026-11-04T02:00:00Z'}];
+const admin=workerNotifications(rows,{role:'administrator',email:'admin1'}),auditor=workerNotifications(rows,{role:'auditor',email:'auditor1'});
+assert.equal(admin.length,3);assert.deepEqual(auditor.map(n=>n.id),['a:accepted']);assert.equal(workerNotifications(rows,{role:'custodian',email:'auditor1'}).length,0);
+receiveWorkerPopups('admin1',admin,[]);assert.deepEqual(popupSnapshot('admin1'),['p:submitted']);dismissWorkerPopup('admin1','p:submitted');receiveWorkerPopups('admin1',admin,[]);assert.equal(popupSnapshot('admin1').length,0);
+receiveWorkerPopups('auditor1',auditor,[]);assert.deepEqual(popupSnapshot('auditor1'),['a:accepted']);receiveWorkerPopups('auditor1',auditor,['a:accepted']);assert.equal(popupSnapshot('auditor1').length,0);
+assert.equal(workerNotifications(rows,{role:'auditor',email:'auditor2'})[0].reason,'Wrong site');
+console.log('PASS: role-scoped history, private auditor decisions and reasons, popup deduplication, and read dismissal');
