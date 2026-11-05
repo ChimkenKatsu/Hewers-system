@@ -57,7 +57,7 @@ public class MainActivity extends ComponentActivity {
         settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true); settings.setAllowFileAccess(false); settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setSupportMultipleWindows(true); settings.setJavaScriptCanOpenWindowsAutomatically(false);
-        settings.setUserAgentString(settings.getUserAgentString()+" HewersAndroid/0.2.0");
+        settings.setUserAgentString(settings.getUserAgentString()+" HewersAndroid/0.3.0");
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(web,false);
         progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.rgb(244,171,2))); root.addView(progress,new FrameLayout.LayoutParams(-1,dp(4),Gravity.TOP));

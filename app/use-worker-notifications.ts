@@ -1,12 +1,12 @@
 'use client';
 import {useCallback,useEffect,useMemo,useState,useSyncExternalStore} from 'react';
-import type {WorkerRequest} from './model';
+import type {State} from './model';
 import type {Access} from './permissions';
-import {workerNotifications} from './worker-notifications';
+import {workspaceNotifications} from './worker-notifications';
 import {readApiJson} from './api-client';
 import {popupSnapshot,subscribePopups,receiveWorkerPopups,dismissWorkerPopup,emptyPopupIds} from './worker-popup-store';
-export function useWorkerNotifications(requests:WorkerRequest[],access:Access,workspaceId:string,enabled:boolean){
- const scope=workspaceId+':'+access.userId,events=useMemo(()=>workerNotifications(requests,access),[requests,access]);
+export function useWorkerNotifications(state:State,access:Access,workspaceId:string,enabled:boolean){
+ const scope=workspaceId+':'+access.userId,events=useMemo(()=>workspaceNotifications(state,access),[state,access]);
  const [readState,setReadState]=useState<{scope:string;ids:string[]}>({scope:'',ids:[]}),[error,setError]=useState('');
  const reads=readState.scope===scope?readState.ids:[];
  const popups=useSyncExternalStore(useCallback(listener=>subscribePopups(scope,listener),[scope]),useCallback(()=>popupSnapshot(scope),[scope]),()=>emptyPopupIds);

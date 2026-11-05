@@ -9,6 +9,12 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  const site=()=>{if(!s.sites.some(x=>x.id===p.siteId))throw Error('Select a valid site');return p.siteId};
  let message='';
  if(action==='site'){const name=text(p.name,'site name');s.sites.push({id,name,location:text(p.location,'location')});message='Created site: '+name;}
+ else if(action==='site-shift-settings'){
+  const selected=s.sites.find(x=>x.id===p.siteId);if(!selected)throw Error('Site not found');
+  if(typeof p.shiftEnd!=='string'||(p.shiftEnd!==''&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.shiftEnd)))throw Error('Choose a valid end-of-shift time');
+  if(p.shiftEnd)selected.shiftEnd=p.shiftEnd;else delete selected.shiftEnd;
+  message=(p.shiftEnd?'Set missing time-out reminders to '+p.shiftEnd+' PHT at ':'Disabled missing time-out reminders at ')+selected.name;
+ }
  else if(action==='worker'){const name=text(p.name,'worker name');s.workers.push({id,name,trade:text(p.trade,'trade'),siteId:site()});message='Registered worker: '+name;}
  else if(action==='worker-archive'||action==='worker-restore'){
   const worker=s.workers.find(w=>w.id===p.workerId);if(!worker)throw Error('Worker not found');

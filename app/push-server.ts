@@ -20,6 +20,16 @@ async function accessToken(c:Credentials,signal:AbortSignal){
  cached={identity,token:result.access_token,until:Date.now()+(Math.min(result.expires_in||3600,3600)-120)*1000};
  return result.access_token;
 }
+export async function sendAttendanceReminder(deviceToken:string,eventId:string){
+ const raw=(env as unknown as {FCM_SERVICE_ACCOUNT_JSON?:string}).FCM_SERVICE_ACCOUNT_JSON;if(!raw)throw Error('Push configuration unavailable');
+ const c=JSON.parse(raw) as Credentials;if(c.project_id!=='hewers-system')throw Error('Invalid push project');
+ const signal=AbortSignal.timeout(10000),token=await accessToken(c,signal);
+ const r=await fetch('https://fcm.googleapis.com/v1/projects/hewers-system/messages:send',{method:'POST',signal,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({message:{token:deviceToken,data:{kind:'missing-timeout',eventId},android:{priority:'high',ttl:'3600s'}}})});
+ if(r.ok)return;
+ const result=await r.json() as {error?:{details?:{errorCode?:string}[]}};
+ if(result.error?.details?.some(d=>d.errorCode==='UNREGISTERED')){await env.DB!.prepare('DELETE FROM push_device WHERE token=?').bind(deviceToken).run();return;}
+ throw Error('Reminder push delivery failed');
+}
 /** Best effort after a successful commit. Failures must never make a saved request look unsaved. */
 export async function sendWorkerPush(owner:string,before:State,after:State){
  const events=pushEvents(before,after);if(!events.length)return;

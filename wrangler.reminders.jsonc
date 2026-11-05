@@ -1,0 +1,10 @@
+{
+ "name":"hewers-attendance-reminders",
+ "account_id":"fe5a42bcd0c1ac4feea5af9452252a81",
+ "main":"hosting/cloudflare/attendance-reminder-cron.mjs",
+ "compatibility_date":"2026-05-15",
+ "workers_dev":false,
+ "preview_urls":false,
+ "services":[{"binding":"HEWERS_BACKEND","service":"hewers-workforce"}],
+ "triggers":{"crons":["*/5 * * * *"]}
+}
