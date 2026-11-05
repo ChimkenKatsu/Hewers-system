@@ -1,5 +1,6 @@
 export type AutoEnrollmentState={demo:boolean;ready:boolean;camera:boolean;engine:boolean;busy:boolean;alert:boolean;workerId:string;purpose:string;consent:boolean;enabled:boolean;paused:boolean;enrolled:boolean;allowed:boolean};
 export function autoEnrollmentAllowed(s:AutoEnrollmentState){return !s.demo&&s.ready&&s.camera&&s.engine&&!s.busy&&!s.alert&&!!s.workerId&&s.purpose==='enroll'&&s.consent&&s.enabled&&!s.paused&&!s.enrolled&&s.allowed;}
+export function autoAttendanceAllowed(s:AutoEnrollmentState&{validAction:boolean}){return !s.demo&&s.ready&&s.camera&&s.engine&&!s.busy&&!s.alert&&!!s.workerId&&['in','out'].includes(s.purpose)&&s.enabled&&!s.paused&&s.enrolled&&s.allowed&&s.validAction;}
 /** Trigger once only after consecutive clear-face checks span the hold period. */
 export function autoEnrollmentGate(holdMs=1400){
  let readySince:number|null=null,triggered=false;

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
-import {autoEnrollmentGate,autoEnrollmentAllowed,type AutoEnrollmentState} from '../app/auto-enrollment';
+import {autoEnrollmentGate,autoEnrollmentAllowed,autoAttendanceAllowed,type AutoEnrollmentState} from '../app/auto-enrollment';
 const eligible:AutoEnrollmentState={demo:false,ready:true,camera:true,engine:true,busy:false,alert:false,workerId:'w',purpose:'enroll',consent:true,enabled:true,paused:false,enrolled:false,allowed:true};
 assert.equal(autoEnrollmentAllowed(eligible),true);
+const attendance={...eligible,purpose:'in',enrolled:true,consent:false,validAction:true};
+assert.equal(autoAttendanceAllowed(attendance),true);
+assert.equal(autoAttendanceAllowed({...attendance,purpose:'out'}),true);
+for(const override of [{demo:true},{ready:false},{camera:false},{engine:false},{busy:true},{alert:true},{workerId:''},{purpose:'enroll'},{enabled:false},{paused:true},{enrolled:false},{allowed:false},{validAction:false}])assert.equal(autoAttendanceAllowed({...attendance,...override}),false,JSON.stringify(override));
 for(const override of [{demo:true},{ready:false},{camera:false},{engine:false},{busy:true},{alert:true},{workerId:''},{purpose:'in'},{purpose:'out'},{consent:false},{enabled:false},{paused:true},{enrolled:true},{allowed:false}])assert.equal(autoEnrollmentAllowed({...eligible,...override}),false,JSON.stringify(override));
 let gate=autoEnrollmentGate();
 assert.equal(gate.check(false,true,0).capture,false,'No capture without consent/eligibility');
