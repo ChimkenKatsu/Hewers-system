@@ -1,0 +1,18 @@
+.brand-intro{position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:28px;background:radial-gradient(ellipse at 50% 45%,#fff 0%,#f2f5f9 72%);pointer-events:none;animation:brand-intro-exit .3s ease 1.3s both}
+.brand-intro-art{display:flex;align-items:center;gap:24px;width:min(620px,83vw)}
+.brand-intro-symbol{width:28%;flex:none;overflow:visible}
+.brand-piece,.brand-heads{transform-box:fill-box;transform-origin:center}
+.brand-piece-left{animation:brand-join-left .7s cubic-bezier(.16,1,.3,1) both}
+.brand-piece-right{animation:brand-join-right .7s cubic-bezier(.16,1,.3,1) .1s both}
+.brand-heads{animation:brand-head-rise .5s cubic-bezier(.16,1,.3,1) .2s both}
+.brand-intro-name{flex:1;display:flex;flex-direction:column;min-width:0;animation:brand-name-reveal .7s ease .3s both;font-family:Arial,Helvetica,sans-serif;color:#002448}
+.brand-intro-rule{height:3px;width:min(180px,30vw);background:#e9a500;border-radius:3px;transform-origin:left;animation:brand-rule .6s ease .45s both}
+.brand-intro-caption{margin:0;color:#64748b;font:600 10px/1.5 Arial,Helvetica,sans-serif;letter-spacing:.23em;animation:brand-name-reveal .5s ease .55s both}
+@keyframes brand-join-left{from{opacity:0;transform:translate(-24px,15px)}to{opacity:1;transform:translate(0,0)}}
+@keyframes brand-join-right{from{opacity:0;transform:translate(24px,15px)}to{opacity:1;transform:translate(0,0)}}
+@keyframes brand-head-rise{from{opacity:0;transform:translateY(12px) scale(.85)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes brand-name-reveal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes brand-rule{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes brand-intro-exit{to{opacity:0;visibility:hidden}}
+@media(max-width:540px){.brand-intro-art{gap:12px}.brand-intro{gap:22px}.brand-intro-caption{font-size:8px;letter-spacing:.16em}}
+@media(prefers-reduced-motion:reduce){.brand-intro,.brand-intro *{animation:none!important}.brand-intro{animation:brand-intro-exit .001s linear .2s both!important}}

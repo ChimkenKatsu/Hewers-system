@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 650 210" role="img" aria-label="Hewers Manpower Services">
+  <g fill="#002448">
+    <circle cx="35" cy="35" r="22"/><circle cx="133" cy="35" r="22"/>
+    <path d="M14 60l32 15 38 35v40l-38-33v78l-32-21z"/>
+  </g>
+  <path fill="#e9a500" d="M154 60l-32 15-38 35v40l38-31v76l32-21z"/>
+  <g font-family="Arial,Helvetica,sans-serif" fill="#002448">
+    <text x="203" y="97" textLength="430" lengthAdjust="spacingAndGlyphs" font-weight="800" font-size="81" letter-spacing="-2">HEWERS</text>
+    <text x="205" y="148" fill="#e9a500" textLength="430" lengthAdjust="spacingAndGlyphs" font-weight="700" font-size="43" letter-spacing="2.1">MANPOWER</text>
+    <text x="274" y="187" textLength="296" lengthAdjust="spacingAndGlyphs" font-size="28" letter-spacing="9">SERVICES</text>
+  </g>
+  <path stroke="#e9a500" stroke-width="4" d="M205 177h51m325 0h51"/>
+</svg>
