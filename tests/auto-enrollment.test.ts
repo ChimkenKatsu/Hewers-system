@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {autoEnrollmentGate,autoEnrollmentAllowed,type AutoEnrollmentState} from '../app/auto-enrollment';
+const eligible:AutoEnrollmentState={demo:false,ready:true,camera:true,engine:true,busy:false,alert:false,workerId:'w',purpose:'enroll',consent:true,enabled:true,paused:false,enrolled:false,allowed:true};
+assert.equal(autoEnrollmentAllowed(eligible),true);
+for(const override of [{demo:true},{ready:false},{camera:false},{engine:false},{busy:true},{alert:true},{workerId:''},{purpose:'in'},{purpose:'out'},{consent:false},{enabled:false},{paused:true},{enrolled:true},{allowed:false}])assert.equal(autoEnrollmentAllowed({...eligible,...override}),false,JSON.stringify(override));
+let gate=autoEnrollmentGate();
+assert.equal(gate.check(false,true,0).capture,false,'No capture without consent/eligibility');
+assert.deepEqual(gate.check(true,true,100),{capture:false,seconds:2});
+assert.equal(gate.check(true,true,800).capture,false);
+assert.equal(gate.check(true,false,1000).capture,false,'Lost face resets countdown');
+assert.equal(gate.check(true,true,2000).capture,false);
+assert.equal(gate.check(true,true,3399).capture,false);
+assert.equal(gate.check(true,true,3400).capture,true);
+assert.equal(gate.check(true,true,5000).capture,false,'One attempt only');
+gate=autoEnrollmentGate();gate.check(true,true,0);gate.check(false,true,1000);assert.equal(gate.check(true,true,1500).capture,false,'Revoked consent resets readiness');assert.equal(gate.check(true,true,2900).capture,true);
+console.log('PASS: enrollment consent gate, stable face hold, lost-face reset, eligibility reset and one-shot capture');
