@@ -3,7 +3,7 @@ import {createRequire} from 'node:module';
 import {readFile,readdir} from 'node:fs/promises';
 const require=createRequire(import.meta.url),wranglerRequire=createRequire(require.resolve('wrangler/package.json'));
 const {Miniflare}=wranglerRequire('miniflare');
-const writes=[],uploads=[];let photoSaved=false,refreshes=0;
+const writes=[],uploads=[],sheetUpdates=[],clears=[];let photoSaved=false,refreshes=0;
 const json=(b,status=200)=>Response.json(b,{status});
 const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.mjs',compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['BUCKET'],bindings:{AUTH_SECRET:"google-test-session-secret-at-least-32-characters",AUTH_BASE_URL:"http://test.local",TRUST_SITES_IDENTITY:"true",GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',GOOGLE_REDIRECT_URI:'https://test.local/api/google/callback',GOOGLE_TOKEN_KEY:Buffer.alloc(32,9).toString('base64')},outboundService:async req=>{
  const u=new URL(req.url);if(u.hostname==='oauth2.googleapis.com'){refreshes++;return json({access_token:'test-access',refresh_token:'test-refresh',expires_in:3600,scope:'https://www.googleapis.com/auth/drive.file'})}
@@ -11,6 +11,8 @@ const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/api-test-worker.
  if(u.pathname==='/drive/v3/files'&&req.method==='GET')return json({files:u.searchParams.get('q')?.includes('hewersPhoto')&&photoSaved?[{id:'photo-1'}]:[]});
  if(u.pathname==='/drive/v3/files'&&req.method==='POST'){const b=await req.json();return json({id:b.mimeType==='application/vnd.google-apps.folder'?'folder-1':'sheet-1'})}
  if(u.pathname==='/v4/spreadsheets/sheet-1'&&req.method==='GET')return json({sheets:[]});
+ if(u.pathname==='/v4/spreadsheets/sheet-1:batchUpdate'){sheetUpdates.push(await req.json());return json({})}
+ if(u.pathname==='/v4/spreadsheets/sheet-1/values:batchClear'){clears.push(await req.json());return json({})}
  if(u.pathname==='/v4/spreadsheets/sheet-1/values:batchUpdate'){writes.push(await req.json());return json({})}
  if(u.pathname==='/upload/drive/v3/files'){return new Response(null,{status:200,headers:{Location:'https://www.googleapis.com/upload/session-1'}})}
  if(u.pathname==='/upload/session-1'){uploads.push(new Uint8Array(await req.arrayBuffer()));photoSaved=true;return json({id:'photo-1'})}
@@ -33,7 +35,7 @@ try{
  const saved=await db.prepare('SELECT token FROM google_connections WHERE owner=?').bind(owner).first();assert.ok(!saved.token.includes('test-refresh'));assert.ok(!saved.token.includes('test-access'));
  const snapshot={sites:[{id:'s',name:'Site A',location:'Test'}],workers:[{id:'w',name:'Worker A',trade:'Mason',siteId:'s'}],attendance:[{id:'a',workerId:'w',siteId:'s',timeIn:'2026-11-02T00:00:00Z',timeOut:null,method:'Manual',note:'private'}],materials:[{id:'m',name:'Cement',siteId:'s',unit:'bags',balance:3,minimum:5}],movements:[],photos:[{id:'p',siteId:'s',caption:'Site photo',category:'Delivery',url:'/api/photos?key=google-owner%2Fp',created:'2026-11-02T00:00:00Z',actor:'owner',transactionId:''}],audit:[]};
  await db.prepare('UPDATE workspaces SET state=? WHERE owner=?').bind(JSON.stringify(snapshot),owner).run();const bucket=await mf.getR2Bucket('BUCKET');await bucket.put('google-owner/p',new Uint8Array([1,2,3]),{httpMetadata:{contentType:'image/png'}});
- r=await req('/api/google','POST',{action:'sync'});let result=await r.json();assert.equal(r.status,200,JSON.stringify(result));assert.equal(uploads.length,1);assert.equal(writes[0].valueInputOption,'RAW');assert.equal(writes[0].data[0].values[1][1],'Worker A');assert.ok(!JSON.stringify(writes).includes('private'));
+ r=await req('/api/google','POST',{action:'sync'});let result=await r.json();assert.equal(r.status,200,JSON.stringify(result));assert.equal(uploads.length,1);assert.equal(writes[0].valueInputOption,'RAW');assert.equal(sheetUpdates[0].requests[0].addSheet.properties.gridProperties.columnCount,15);assert.deepEqual(clears[0].ranges,['Attendance!A:O','Inventory!A:I','Movements!A:L']);assert.equal(writes[0].data[0].values[1][1],'Worker A');assert.ok(!JSON.stringify(writes).includes('private'));
  r=await req('/api/google','POST',{action:'sync'});assert.equal(r.status,200,JSON.stringify(await r.json()));assert.equal(uploads.length,1,'Repeated sync must skip copied photos');
  r=await req('/api/google');result=await r.json();assert.equal(result.connected,true);assert.ok(result.lastSync);assert.equal(result.sheetUrl,'https://docs.google.com/spreadsheets/d/sheet-1');
  await db.prepare('INSERT INTO memberships(id,owner,email,user_id,name,role,site_ids,active,created) VALUES(?,?,?,?,?,?,?,?,?)').bind('staff',owner,'staff@example.test','staff','Supervisor','supervisor','["s"]',1,new Date().toISOString()).run();
@@ -56,4 +58,3 @@ try{
  const noSession=await mf.dispatchFetch('http://test.local/api/google/callback',{method:'POST',redirect:'manual',headers:{Origin:'http://test.local',Cookie:nonce+'; '+pendingNamed}});assert.match(noSession.headers.get('Location'),/google=failed/);
  console.log('PASS: mocked Google OAuth, nonce rejection, encrypted token storage, owner-only access, RAW report export, photo copy/deduplication, completion status and disconnect. No live Google connection was used.');
 }finally{await mf.dispose()}
-

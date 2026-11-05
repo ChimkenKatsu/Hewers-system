@@ -17,11 +17,11 @@ export async function POST(req:Request){let owner='',lease=0;try{
  let sheet=row.sheet_id||await find('sheet');if(!sheet){const r=await google(token,'www.googleapis.com/drive/v3/files','POST',{name:'Hewers — attendance and inventory',mimeType:'application/vnd.google-apps.spreadsheet',parents:[folder],appProperties:{hewersOwner:owner,hewersKind:'sheet'}});sheet=r.id as string;}
  await store.prepare('UPDATE google_connections SET sheet_id=? WHERE owner=?').bind(sheet,owner).run();
  const rows=googleRows(ctx.state),metadata=await google(token,'sheets.googleapis.com/v4/spreadsheets/'+sheet+'?fields=sheets(properties)');
- const tabs=(metadata.sheets as {properties:{sheetId:number;title:string;gridProperties?:{rowCount:number}}}[]).map(s=>s.properties);
- const requests=Object.entries(rows).map(([title,values],i)=>{const tab=tabs.find(t=>t.title===title);return tab?{updateSheetProperties:{properties:{sheetId:tab.sheetId,gridProperties:{rowCount:Math.max(values.length,tab.gridProperties?.rowCount||1000)}},fields:'gridProperties.rowCount'}}:{addSheet:{properties:{title,sheetId:100+i,gridProperties:{rowCount:Math.max(values.length,1000),columnCount:12,frozenRowCount:1}}}};});
+ const tabs=(metadata.sheets as {properties:{sheetId:number;title:string;gridProperties?:{rowCount:number;columnCount?:number}}}[]).map(s=>s.properties);
+ const requests=Object.entries(rows).map(([title,values],i)=>{const tab=tabs.find(t=>t.title===title),columnCount=values[0].length;return tab?{updateSheetProperties:{properties:{sheetId:tab.sheetId,gridProperties:{rowCount:Math.max(values.length,tab.gridProperties?.rowCount||1000),columnCount:Math.max(columnCount,tab.gridProperties?.columnCount||26)}},fields:'gridProperties.rowCount,gridProperties.columnCount'}}:{addSheet:{properties:{title,sheetId:100+i,gridProperties:{rowCount:Math.max(values.length,1000),columnCount,frozenRowCount:1}}}};});
  await google(token,'sheets.googleapis.com/v4/spreadsheets/'+sheet+':batchUpdate','POST',{requests});
  // Mirror only these three app-managed tabs. RAW prevents formula execution from names.
- await google(token,'sheets.googleapis.com/v4/spreadsheets/'+sheet+'/values:batchClear','POST',{ranges:Object.keys(rows).map(t=>t+'!A:F')});
+ await google(token,'sheets.googleapis.com/v4/spreadsheets/'+sheet+'/values:batchClear','POST',{ranges:Object.entries(rows).map(([title,values])=>title+'!A:'+String.fromCharCode(64+values[0].length))});
  await google(token,'sheets.googleapis.com/v4/spreadsheets/'+sheet+'/values:batchUpdate','POST',{valueInputOption:'RAW',data:Object.entries(rows).map(([range,values])=>({range:range+'!A1',values}))});
  let uploaded=0,pending=0;
  for(const photo of ctx.state.photos){

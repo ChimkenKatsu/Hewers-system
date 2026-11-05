@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "817428843340",
+    "project_id": "hewers-system",
+    "storage_bucket": "hewers-system.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:817428843340:android:a5ba11e69bc44a5193dde9",
+        "android_client_info": {
+          "package_name": "com.hewers.workforce"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpLIJ-eyw3AjDjMD9Wd-ypvreC5jo66Hk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {emptyState} from '../app/model';
+import {pushEvents,mayReceivePush} from '../app/push-policy';
+const before=emptyState(),after=emptyState();
+after.workerRequests=[{id:'r',name:'Private name',trade:'Trade',siteId:'s',status:'pending',created:'2026-11-05T00:00:00Z',createdBy:'auditor@example.test'}];
+const [submitted]=pushEvents(before,after);
+assert.equal(mayReceivePush(submitted,{role:'administrator',email:'admin@example.test',site_ids:'[]'}),true);
+assert.equal(mayReceivePush(submitted,{role:'auditor',email:'auditor@example.test',site_ids:'["s"]'}),false);
+const reviewed=structuredClone(after);reviewed.workerRequests![0].status='declined';
+const [decision]=pushEvents(after,reviewed);
+assert.equal(mayReceivePush(decision,{role:'auditor',email:'auditor@example.test',site_ids:'["s"]'}),true);
+for(const user of [{role:'auditor',email:'other@example.test',site_ids:'["s"]'},{role:'auditor',email:'auditor@example.test',site_ids:'[]'},{role:'administrator',email:'admin@example.test',site_ids:'["s"]'}])assert.equal(mayReceivePush(decision,user),false);
+assert.deepEqual(pushEvents(reviewed,reviewed),[]);
+console.log('PASS: push transitions, auditor ownership and current site permissions');

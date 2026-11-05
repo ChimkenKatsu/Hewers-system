@@ -3,6 +3,7 @@ import {env} from 'cloudflare:workers';
 import {applyOperation} from '../../operations';
 import {authorize} from '../../permissions';
 import {identity,context,payload,json,originCheck,commit,fail} from '../../server-access';
+import {sendWorkerPush} from '../../push-server';
 export async function GET(req:Request){try{
  const user=await identity(req);
  const ctx=await context(req);
@@ -22,5 +23,7 @@ export async function POST(req:Request){try{
   const photo=usesSupabase()?(await sb('hewers_photo_uploads?workspace_id='+eq(ctx.access.owner)+'&storage_path='+eq(key)+'&select=site_id')).map((p:any)=>({customMetadata:{siteId:p.site_id}}))[0]:await env.BUCKET!.head(key);if(!photo||photo.customMetadata?.siteId!==body.payload.siteId)throw Error('Photo does not belong to this site');
  }
  const state=applyOperation(ctx.state,body.action==='worker'&&ctx.access.role==='auditor'?'worker-request':body.action,body.payload,ctx.access.email);
- return json(await commit(ctx,state));
+ const result=await commit(ctx,state);
+ await sendWorkerPush(ctx.access.owner,ctx.state,state);
+ return json(result);
 }catch(e){return fail(e)}}

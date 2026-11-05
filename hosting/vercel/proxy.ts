@@ -1,5 +1,5 @@
 const backend='https://hewers-workforce.tristandominicparajes-202200583.workers.dev';
-const routes=/^\/api\/(workspace|notifications|face|scan-diagnostics|accounts|account\/password|staff|photos|google(?:\/connect|\/callback)?|auth\/(?:sign-in\/username|sign-in\/email|sign-out|get-session|sign-up\/email))$/;
+const routes=/^\/api\/(workspace|notifications|push|face|scan-diagnostics|accounts|account\/password|staff|photos|google(?:\/connect|\/callback)?|auth\/(?:sign-in\/username|sign-in\/email|sign-out|get-session|sign-up\/email))$/;
 const json=(error:string,status:number)=>Response.json({error},{status,headers:{'Cache-Control':'private, no-store'}});
 // Authenticate at the existing backend. This gateway stores no credentials or sessions.
 export async function proxyHewersApi(req:Request,send:typeof fetch=fetch):Promise<Response>{

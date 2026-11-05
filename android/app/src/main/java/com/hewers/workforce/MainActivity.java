@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 public class MainActivity extends ComponentActivity {
-    private static final int CAMERA = 10, PHOTO = 11, EXPORT = 12;
+    private static final int CAMERA = 10, PHOTO = 11, EXPORT = 12, NOTIFICATIONS = 13;
     private WebView web;
     private ProgressBar progress;
     private LinearLayout errorPanel;
@@ -48,6 +48,7 @@ public class MainActivity extends ComponentActivity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        HewersMessagingService.createChannel(this);
         FrameLayout root = new FrameLayout(this); root.setBackgroundColor(Color.rgb(0,36,72)); setContentView(root);
         root.setOnApplyWindowInsetsListener((v, insets) -> { if(android.os.Build.VERSION.SDK_INT>=30){android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()); v.setPadding(bars.left,bars.top,bars.right,bars.bottom);}else{v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());} return insets; });
         web = new WebView(this); root.addView(web, new FrameLayout.LayoutParams(-1,-1));
@@ -56,7 +57,7 @@ public class MainActivity extends ComponentActivity {
         settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true); settings.setAllowFileAccess(false); settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setSupportMultipleWindows(true); settings.setJavaScriptCanOpenWindowsAutomatically(false);
-        settings.setUserAgentString(settings.getUserAgentString()+" HewersAndroid/0.1.0");
+        settings.setUserAgentString(settings.getUserAgentString()+" HewersAndroid/0.2.0");
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(web,false);
         progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.rgb(244,171,2))); root.addView(progress,new FrameLayout.LayoutParams(-1,dp(4),Gravity.TOP));
@@ -79,14 +80,29 @@ public class MainActivity extends ComponentActivity {
         });
         if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))WebViewCompat.addWebMessageListener(web,"HewersDownloads",Collections.singleton(AppPolicy.ORIGIN),(view,message,source,isMainFrame,reply)->{if(!isMainFrame||!AppPolicy.isAppUrl(source.toString())||!AppPolicy.isAppUrl(web.getUrl()))return;try{JSONObject value=new JSONObject(message.getData());String text=value.getString("text"),name=AppPolicy.downloadName(value.getString("name"));if(text.getBytes(StandardCharsets.UTF_8).length>2*1024*1024){toast("This export is too large. Download it in your browser.");return;}if(pendingExport!=null){toast("Finish saving the current file first.");return;}pendingExport=text.getBytes(StandardCharsets.UTF_8);Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(name.endsWith(".csv")?"text/csv":"text/plain");intent.putExtra(Intent.EXTRA_TITLE,name);startActivityForResult(intent,EXPORT);}catch(Exception e){pendingExport=null;toast("The file could not be prepared. Try again.");}});
         web.setDownloadListener((url,agent,disposition,mime,length)->toast("Use the export button. If unavailable, update Android System WebView or open Hewers in your browser."));
-        if(state==null||web.restoreState(state)==null)web.loadUrl(AppPolicy.HOME);
+        if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))WebViewCompat.addWebMessageListener(web,"HewersPush",Collections.singleton(AppPolicy.ORIGIN),(view,message,source,isMainFrame,reply)->{
+            if(!isMainFrame||!AppPolicy.isAppUrl(source.toString())||!AppPolicy.isAppUrl(web.getUrl())||!"register".equals(message.getData()))return;
+            if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+                if(!getPreferences(MODE_PRIVATE).getBoolean("notificationPermissionAsked",false)){
+                    getPreferences(MODE_PRIVATE).edit().putBoolean("notificationPermissionAsked",true).apply();
+                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFICATIONS);
+                }
+                return;
+            }
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token->{
+                if(!isFinishing()&&AppPolicy.isAppUrl(web.getUrl())){try{reply.postMessage(new JSONObject().put("token",token).toString());}catch(Exception ignored){/* Page may have navigated. Next sync retries. */}}
+            });
+        });
+        if(getIntent().getBooleanExtra("openNotifications",false))web.loadUrl(AppPolicy.HOME+"?notifications=1");
+        else if(state==null||web.restoreState(state)==null)web.loadUrl(AppPolicy.HOME);
         getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true){@Override public void handleOnBackPressed(){goBack();}});
     }
     private int dp(int value){return (int)(value*getResources().getDisplayMetrics().density);}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("openNotifications",false)&&web!=null)web.loadUrl(AppPolicy.HOME+"?notifications=1");}
     private void toast(String text){Toast.makeText(this,text,Toast.LENGTH_LONG).show();}
     private void openExternal(String raw){if(!AppPolicy.isExternalHttps(raw))return;try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(raw)));}catch(ActivityNotFoundException e){toast("Install a browser to open this link.");}}
     private void goBack(){if(web.canGoBack())web.goBack();else moveTaskToBack(true);}
-    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(code==CAMERA&&pendingCamera!=null){if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED&&AppPolicy.isAppUrl(web.getUrl()))pendingCamera.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});else pendingCamera.deny();pendingCamera=null;}}
+    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(code==NOTIFICATIONS&&results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED&&AppPolicy.isAppUrl(web.getUrl()))web.evaluateJavascript("window.dispatchEvent(new Event('hewers-push-ready'))",null);if(code==CAMERA&&pendingCamera!=null){if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED&&AppPolicy.isAppUrl(web.getUrl()))pendingCamera.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});else pendingCamera.deny();pendingCamera=null;}}
     @Override protected void onActivityResult(int code,int result,Intent data){super.onActivityResult(code,result,data);if(code==PHOTO&&photoCallback!=null){Uri uri=result==RESULT_OK&&data!=null?data.getData():null;String type=uri!=null?getContentResolver().getType(uri):null;photoCallback.onReceiveValue(uri!=null&&"content".equals(uri.getScheme())&&type!=null&&(type.equals("image/jpeg")||type.equals("image/png")||type.equals("image/webp"))?new Uri[]{uri}:null);photoCallback=null;}if(code==EXPORT){byte[] bytes=pendingExport;pendingExport=null;if(result==RESULT_OK&&data!=null&&data.getData()!=null&&bytes!=null){try(OutputStream out=getContentResolver().openOutputStream(data.getData())){if(out==null)throw new java.io.IOException();out.write(bytes);toast("File saved.");}catch(Exception e){toast("The file could not be saved. Try exporting again.");}}}}
     @Override protected void onSaveInstanceState(Bundle out){web.saveState(out);super.onSaveInstanceState(out);}
     @Override protected void onPause(){web.onPause();CookieManager.getInstance().flush();super.onPause();}
