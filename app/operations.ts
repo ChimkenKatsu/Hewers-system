@@ -10,6 +10,17 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  let message='';
  if(action==='site'){const name=text(p.name,'site name');s.sites.push({id,name,location:text(p.location,'location')});message='Created site: '+name;}
  else if(action==='worker'){const name=text(p.name,'worker name');s.workers.push({id,name,trade:text(p.trade,'trade'),siteId:site()});message='Registered worker: '+name;}
+ else if(action==='worker-archive'||action==='worker-restore'){
+  const worker=s.workers.find(w=>w.id===p.workerId);if(!worker)throw Error('Worker not found');
+  if(action==='worker-archive'){
+   if(worker.archivedAt)throw Error('This worker is already archived');
+   if(s.attendance.some(a=>a.workerId===worker.id&&!a.timeOut))throw Error('Check this worker out before archiving them');
+   worker.archivedAt=now;worker.archivedBy=actor;message='Archived worker: '+worker.name;
+  }else{
+   if(!worker.archivedAt)throw Error('This worker is already active');
+   delete worker.archivedAt;delete worker.archivedBy;message='Restored worker: '+worker.name;
+  }
+ }
  else if(action==='worker-request'){
   const name=text(p.name,'worker name'),trade=text(p.trade,'trade'),siteId=site();
   s.workerRequests??=[];
@@ -27,6 +38,7 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  else if(action==='attendance'){
 
   const w=s.workers.find(x=>x.id===p.workerId);if(!w)throw Error('Select a valid worker');
+  if(w.archivedAt)throw Error('This worker is archived. Restore them before recording attendance');
   const open=s.attendance.find(x=>x.workerId===w.id&&!x.timeOut);
   if(p.type==='in'){if(open)throw Error('This worker already has an open attendance record');s.attendance.push({id,workerId:w.id,siteId:w.siteId,timeIn:now,timeOut:null,method:'Manual',note:text(p.note,'manual attendance reason',500)});message=w.name+' checked in (manual)';}
   else if(p.type==='out'){if(!open)throw Error('This worker has no open attendance record');open.timeOut=now;open.timeOutMethod='Manual';message=w.name+' checked out (manual)';}

@@ -1,5 +1,5 @@
 export type Site={id:string;name:string;location:string};
-export type Worker={id:string;name:string;trade:string;siteId:string};
+export type Worker={id:string;name:string;trade:string;siteId:string;archivedAt?:string;archivedBy?:string};
 export type Attendance={id:string;workerId:string;siteId:string;timeIn:string;timeOut:string|null;method:string;timeOutMethod?:string;note:string;correctionId?:string};
 export type Material={id:string;name:string;unit:string;siteId:string;balance:number;minimum:number};
 export type Movement={id:string;materialId:string;siteId:string;type:string;quantity:number;note:string;created:string;actor:string;adjustmentDelta?:number;reconciliationId?:string};

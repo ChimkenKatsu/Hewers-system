@@ -3,7 +3,7 @@ import type {State} from './model';
 export function dailySummary(state:State,date:string,siteId='all'){
  return state.sites.filter(s=>siteId==='all'||s.id===siteId).map(site=>{
   const attendance=state.attendance.filter(a=>a.siteId===site.id&&day(a.timeIn)===date);
-  return {site,workers:state.workers.filter(w=>w.siteId===site.id).length,attended:new Set(attendance.map(a=>a.workerId)).size,
+  return {site,workers:state.workers.filter(w=>w.siteId===site.id&&!w.archivedAt).length,attended:new Set(attendance.map(a=>a.workerId)).size,
    onSite:new Set(state.attendance.filter(a=>a.siteId===site.id&&!a.timeOut).map(a=>a.workerId)).size,
    movements:state.movements.filter(m=>m.siteId===site.id&&day(m.created)===date).length,
    photos:state.photos.filter(p=>p.siteId===site.id&&day(p.created)===date).length,
