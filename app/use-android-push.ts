@@ -7,8 +7,8 @@ export function useAndroidPush(connected:boolean,userId:string){
   if(!connected||!userId||!bridge)return;
   let active=true;
   bridge.onmessage=event=>{
-   try{const {token}=JSON.parse(event.data);if(typeof token!=='string'||!active)return;
-    void fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).catch(()=>{/* Retry registration on next sync. */});
+   try{const {token,remindersSupported}=JSON.parse(event.data);if(typeof token!=='string'||!active)return;
+    void fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,remindersSupported:remindersSupported===true})}).catch(()=>{/* Retry registration on next sync. */});
    }catch{/* Ignore malformed native messages. */}
   };
   const sync=()=>{if(!document.hidden)bridge.postMessage('register')};

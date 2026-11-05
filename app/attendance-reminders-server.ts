@@ -11,7 +11,7 @@ export async function runAttendanceReminders(dryRun=false,now=Date.now()){
   const row=usesSupabase()?(await sb('hewers_workspaces?id='+eq(owner)+'&select=state,migrated_at'))[0]:await env.DB!.prepare('SELECT state FROM workspaces WHERE owner=?').bind(owner).first<{state:string}>();
   if(!row||usesSupabase()&&!row.migrated_at)continue;
   const state=(typeof row.state==='string'?JSON.parse(row.state):row.state) as State;
-  const devices=await env.DB!.prepare(`SELECT d.token,d.user_id,u.site_ids FROM push_device d JOIN auth_user u ON u.id=d.user_id JOIN auth_session s ON s.id=d.session_id AND s.user_id=u.id WHERE u.workspace_id=? AND u.role='auditor' AND u.active=1 AND u.must_change_password=0 AND s.expires_at>? AND d.updated_at>?`).bind(owner,now,now-30*86400000).all<{token:string;user_id:string;site_ids:string}>();
+  const devices=await env.DB!.prepare(`SELECT d.token,d.user_id,u.site_ids FROM push_device d JOIN auth_user u ON u.id=d.user_id JOIN auth_session s ON s.id=d.session_id AND s.user_id=u.id WHERE d.reminders_supported=1 AND u.workspace_id=? AND u.role='auditor' AND u.active=1 AND u.must_change_password=0 AND s.expires_at>? AND d.updated_at>?`).bind(owner,now,now-30*86400000).all<{token:string;user_id:string;site_ids:string}>();
   for(const device of devices.results){
    let sites:string[];try{sites=JSON.parse(device.site_ids);if(!Array.isArray(sites))continue;}catch{continue;}
    for(const reminder of missingTimeouts(state,{role:'auditor',siteIds:sites},now)){

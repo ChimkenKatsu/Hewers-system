@@ -9,8 +9,9 @@ try{
  for(const[id,role,sites,expiry]of[['auditor','auditor','["s"]',now+3600000],['other','auditor','["other"]',now+3600000],['admin','administrator','[]',now+3600000],['expired','auditor','["s"]',now-1]]){
   await db.prepare('INSERT INTO auth_user(id,name,email,created_at,updated_at,username,workspace_id,role,site_ids,must_change_password) VALUES(?,?,?,?,?,?,?,?,?,0)').bind(id,id,id+'@example.test',now,now,id,'owner',role,sites).run();
   await db.prepare('INSERT INTO auth_session(id,expires_at,token,created_at,updated_at,user_id) VALUES(?,?,?,?,?,?)').bind(id,expiry,id+'-session',now,now,id).run();
-  await db.prepare('INSERT INTO push_device(token,user_id,session_id,updated_at) VALUES(?,?,?,?)').bind(id+'-device',id,id,now).run();
+  await db.prepare('INSERT INTO push_device(token,user_id,session_id,updated_at,reminders_supported) VALUES(?,?,?,?,1)').bind(id+'-device',id,id,now).run();
  }
+ await db.prepare('INSERT INTO push_device(token,user_id,session_id,updated_at,reminders_supported) VALUES(?,?,?,?,0)').bind('legacy-apk-device','auditor','auditor',now).run();
  const call=(body={},authorized=true)=>mf.dispatchFetch('https://test.local/api/internal/attendance-reminders',{method:'POST',headers:{'Content-Type':'application/json',...(authorized?{Authorization:'Bearer mock-reminder-secret'}:{})},body:JSON.stringify(body)});
  assert.equal((await call({},false)).status,401);let r=await call({dryRun:true});assert.equal(r.status,200);assert.equal((await r.json()).due,1);assert.equal(sends.length,0);
  const results=await Promise.all([call(),call()]);for(const response of results)assert.equal(response.status,200,await response.clone().text());assert.equal(sends.length,1);assert.equal(sends[0].token,'auditor-device');

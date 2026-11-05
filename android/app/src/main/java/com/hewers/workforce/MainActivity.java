@@ -90,7 +90,7 @@ public class MainActivity extends ComponentActivity {
                 return;
             }
             com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token->{
-                if(!isFinishing()&&AppPolicy.isAppUrl(web.getUrl())){try{reply.postMessage(new JSONObject().put("token",token).toString());}catch(Exception ignored){/* Page may have navigated. Next sync retries. */}}
+                if(!isFinishing()&&AppPolicy.isAppUrl(web.getUrl())){try{reply.postMessage(new JSONObject().put("token",token).put("remindersSupported",true).toString());}catch(Exception ignored){/* Page may have navigated. Next sync retries. */}}
             });
         });
         if(getIntent().getBooleanExtra("openNotifications",false))web.loadUrl(AppPolicy.HOME+"?notifications=1");
