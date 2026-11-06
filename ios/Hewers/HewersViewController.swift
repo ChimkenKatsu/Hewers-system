@@ -15,6 +15,7 @@ final class HewersViewController: UIViewController, WKNavigationDelegate, WKUIDe
     private var observations: [NSKeyValueObservation] = []
     private let exportHandler = ExportHandler()
     private var downloads: [ObjectIdentifier: URL] = [:]
+    private var downloadOrigins: [ObjectIdentifier: URL] = [:]
     private var exporting = false
     private let navy = UIColor(red: 0, green: 36/255, blue: 72/255, alpha: 1)
     private let gold = UIColor(red: 244/255, green: 171/255, blue: 2/255, alpha: 1)
@@ -175,9 +176,13 @@ final class HewersViewController: UIViewController, WKNavigationDelegate, WKUIDe
         }
         present(activity, animated: true)
     }
-    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) { download.delegate = self }
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        // Keep the original action URL ourselves; WKDownload.originalRequest needs iOS 18.2.
+        if let url = navigationAction.request.url { downloadOrigins[ObjectIdentifier(download)] = url }
+        download.delegate = self
+    }
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-        guard !exporting, AppPolicy.isTrusted(webView.url), let url = download.originalRequest?.url,
+        guard !exporting, AppPolicy.isTrusted(webView.url), let url = downloadOrigins.removeValue(forKey: ObjectIdentifier(download)),
               AppPolicy.isTrusted(url) || AppPolicy.isTrustedBlob(url), let name = AppPolicy.exportFilename(suggestedFilename) else { completionHandler(nil); return }
         do { let url = try exportDirectory().appendingPathComponent(name); downloads[ObjectIdentifier(download)] = url; completionHandler(url) }
         catch { completionHandler(nil); alert("The download could not be prepared.") }
