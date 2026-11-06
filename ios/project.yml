@@ -1,0 +1,54 @@
+name: Hewers
+options:
+  bundleIdPrefix: com.hewers
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  Hewers:
+    type: application
+    platform: iOS
+    sources: [Hewers]
+    info:
+      path: Hewers/Info.plist
+      properties:
+        CFBundleDisplayName: Hewers
+        NSCameraUsageDescription: Hewers uses the camera for supervised worker face enrollment, attendance scans, and site photos.
+        NSPhotoLibraryUsageDescription: Choose a photo to attach as Hewers site evidence.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchMark
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hewers.workforce
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets: [HewersTests, HewersUITests]
+      gatherCoverageData: true
+  HewersTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [HewersTests]
+    dependencies:
+      - target: Hewers
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  HewersUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [HewersUITests]
+    dependencies:
+      - target: Hewers
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

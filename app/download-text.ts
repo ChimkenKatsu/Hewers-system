@@ -1,4 +1,4 @@
-// Android's origin-restricted WebMessage listener provides the native save dialog.
+// Trusted Android and iOS app bridges provide their native save/share dialogs.
 // Browsers keep their normal download behavior.
 export function downloadText(text:string,name:string,mime='text/plain'){
  const bridge=(window as Window&{HewersDownloads?:{postMessage:(value:string)=>void}}).HewersDownloads;

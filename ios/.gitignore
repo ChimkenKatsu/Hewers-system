@@ -1,0 +1,8 @@
+Hewers.xcodeproj/
+build/
+TestResults.xcresult/
+preview-output/
+*.xcuserstate
+*.ipa
+*.p12
+*.mobileprovision

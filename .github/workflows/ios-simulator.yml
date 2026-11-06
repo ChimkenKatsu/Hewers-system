@@ -1,0 +1,58 @@
+name: Build Hewers iPhone preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/ios-app']
+    paths: ['ios/**', '.github/workflows/ios-simulator.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios-simulator.yml']
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Show Apple toolchain
+        run: xcodebuild -version
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec ios/project.yml --project ios
+      - name: Choose an available iPhone simulator
+        run: |
+          xcrun simctl list devices available --json > /tmp/hewers-simulators.json
+          python3 - <<'PY'
+          import json, os
+          devices = json.load(open('/tmp/hewers-simulators.json'))['devices']
+          choices = [d for runtime, values in devices.items() if 'iOS' in runtime for d in values if d['name'].startswith('iPhone')]
+          assert choices, 'No iPhone simulator is installed'
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('HEWERS_SIMULATOR=' + choices[0]['udid'] + '\n')
+          print(choices[0]['name'])
+          PY
+      - name: Build and test iPhone simulator app
+        run: |
+          xcodebuild test -project ios/Hewers.xcodeproj -scheme Hewers -destination "platform=iOS Simulator,id=$HEWERS_SIMULATOR" -derivedDataPath ios/build -resultBundlePath ios/TestResults.xcresult CODE_SIGNING_ALLOWED=NO
+      - name: Capture the hosted sign-in screen
+        run: |
+          xcrun simctl terminate "$HEWERS_SIMULATOR" com.hewers.workforce || true
+          xcrun simctl launch "$HEWERS_SIMULATOR" com.hewers.workforce
+          sleep 10
+          mkdir -p ios/preview-output
+          xcrun simctl io "$HEWERS_SIMULATOR" screenshot ios/preview-output/Hewers-iPhone-login.png
+          ditto -c -k --sequesterRsrc --keepParent ios/build/Build/Products/Debug-iphonesimulator/Hewers.app ios/preview-output/Hewers-iPhone-Simulator.zip
+          printf '%s\n' 'Simulator preview only. This is not an iPhone-installable IPA. TestFlight requires Apple Developer enrollment and signing.' > ios/preview-output/READ-ME.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Hewers-iPhone-Simulator
+          path: ios/preview-output/
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: Hewers-iPhone-Test-Results
+          path: ios/TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
