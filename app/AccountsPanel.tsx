@@ -12,7 +12,7 @@ function AccountSettings({data,workspaceId}:{data:State;workspaceId:string}){
  const [accounts,setAccounts]=useState<Account[]>([]),[selected,setSelected]=useState(''),[sites,setSites]=useState<string[]>([]),[busy,setBusy]=useState(false),[loaded,setLoaded]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[credentials,setCredentials]=useState<Credential[]>([]),[confirm,setConfirm]=useState(''),[showPasswords,setShowPasswords]=useState(false);
  const resultRef=useRef<HTMLElement>(null);
  const auditors=accounts.filter(a=>a.role==='auditor'),auditor=auditors.find(a=>a.id===selected),resetAccount=accounts.find(a=>a.id===confirm);
- const provisionNeeded=['admin1','admin2','admin3','admin4','auditor1'].some(name=>!accounts.some(a=>a.username===name));
+ const provisionNeeded=accounts.filter(a=>a.role==='administrator').length<4||!auditors.length;
  useEffect(()=>{let active=true;fetch('/api/accounts',{headers:{'x-workspace-id':workspaceId}}).then(async r=>{const b=await readApiJson<Result>(r);if(!r.ok||!Array.isArray(b.accounts))throw Error(b.error||'Unable to load accounts');if(active){setMessage(b.warning||'');setAccounts(b.accounts);const first=b.accounts.find(a=>a.role==='auditor');setSelected(first?.id||'');setSites(first?.siteIds||[]);setLoaded(true)}}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[workspaceId]);
  useEffect(()=>{if(credentials.length)resultRef.current?.scrollIntoView({behavior:'smooth',block:'center'})},[credentials]);
  function chooseAuditor(id:string){setSelected(id);setSites(accounts.find(a=>a.id===id)?.siteIds||[]);setMessage('')}

@@ -62,6 +62,7 @@ try{
   const accounts=(await req('/api/accounts','GET',null,admin)).b.accounts;const auditorId=accounts.find(a=>a.username==='auditor1').id;
  assert.equal((await req('/api/accounts','POST',{action:'sites',id:auditorId,siteIds:[siteB]},admin)).r.status,200);
  assert.deepEqual((await req('/api/workspace','GET',null,auditor)).b.state.sites.map(s=>s.id),[siteB]);
+ assert.equal((await req('/api/account/username','POST',{username:'auditor_new',currentPassword:'New-personal-password-auditor1'},auditor)).r.status,403);
  const reset=await req('/api/accounts','POST',{action:'reset',id:auditorId},admin);assert.equal(reset.r.status,200);assert.equal(reset.b.credentials[0].username,'auditor1');
  assert.equal((await req('/api/workspace','GET',null,auditor)).r.status,401,'Reset revokes existing sessions');
  assert.equal((await req('/api/auth/sign-in/username','POST',{username:'auditor1',password:'New-personal-password-auditor1'})).r.status,401,'Previous password must fail');
@@ -69,6 +70,17 @@ try{
  assert.match((await req('/api/workspace','GET',null,auditor)).b.error,/PASSWORD_REQUIRED/);
  auditor=await change('auditor1',auditor);assert.equal((await req('/api/workspace','GET',null,auditor)).r.status,200);
  assert.equal((await req('/api/accounts','POST',{action:'disable',id:auditorId},admin)).r.status,200);assert.equal((await req('/api/workspace','GET',null,auditor)).r.status,401);
+ // Username changes are self-service admin-only and preserve account identity/history.
+ assert.equal((await req('/api/account/username','POST',{username:'new_admin',currentPassword:'wrong'},admin)).r.status,400);
+ assert.equal((await req('/api/account/username','POST',{username:'admin2',currentPassword:'New-personal-password-admin1'},admin)).r.status,409);
+ assert.equal((await req('/api/account/username','POST',{username:'bad name',currentPassword:'New-personal-password-admin1'},admin)).r.status,400);
+ const before=(await req('/api/workspace','GET',null,admin)).b;
+ const renamed=await req('/api/account/username','POST',{username:'CEO_Admin',currentPassword:'New-personal-password-admin1'},admin);assert.equal(renamed.r.status,200,JSON.stringify(renamed.b));assert.equal(renamed.b.username,'ceo_admin');
+ const after=(await req('/api/workspace','GET',null,admin)).b;assert.equal(after.access.userId,before.access.userId);assert.deepEqual(after.state,before.state);assert.equal(after.actor,'ceo_admin');
+ assert.equal((await req('/api/auth/sign-in/username','POST',{username:'admin1',password:'New-personal-password-admin1'})).r.status,401);
+ assert.equal((await req('/api/auth/sign-in/username','POST',{username:'ceo_admin',password:'New-personal-password-admin1'})).r.status,200);
+ const provision=await req('/api/accounts','POST',{action:'provision',siteIds:[siteA]},admin);assert.equal(provision.r.status,200,JSON.stringify(provision.b));assert.equal(provision.b.credentials.length,0);assert.equal(provision.b.accounts.length,5);
+ assert.equal((await req('/api/account/username','POST',{username:'anonymous',currentPassword:'x'})).r.status,401);
  const hashes=await db.prepare('SELECT password FROM auth_account').all();assert.ok(hashes.results.every(a=>credentials.every(c=>a.password!==c.password)));
  console.log('PASS: five distinct accounts, blocked signup, password hashing/first-login change, real sessions, setup bypass blocked, auditor site scope, pending notifications, admin review, double-review denial, and immediate account revocation.');
 }finally{await mf.dispose()}

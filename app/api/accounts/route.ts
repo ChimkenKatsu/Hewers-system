@@ -13,6 +13,7 @@ export async function POST(req:Request){try{
   if(!p.siteIds?.length||p.siteIds.some(id=>!ctx.state.sites.some(s=>s.id===id)))throw Error('Select the auditor’s assigned construction sites');
   const credentials:{username:string;password:string;role:string}[]=[],statements:D1PreparedStatement[]=[];
   for(const name of ['admin1','admin2','admin3','admin4','auditor1']){
+   const original=await db.prepare('SELECT id FROM auth_user WHERE workspace_id=? AND email=?').bind(ctx.access.owner,name+'@hewers.invalid').first();if(original)continue;
    const old=await db.prepare('SELECT workspace_id FROM auth_user WHERE username=?').bind(name).first<{workspace_id:string}>();if(old){if(old.workspace_id!==ctx.access.owner)throw Error('A username is already used by another workspace. Contact the system administrator.');continue;}
    const id=crypto.randomUUID(),secret=password(),hash=await hashPassword(secret),now=Date.now(),role=name==='auditor1'?'auditor':'administrator';
    statements.push(db.prepare('INSERT INTO auth_user(id,name,email,created_at,updated_at,username,display_username,workspace_id,role,site_ids) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,name,name+'@hewers.invalid',now,now,name,name,ctx.access.owner,role,JSON.stringify(role==='auditor'?p.siteIds:[])));
