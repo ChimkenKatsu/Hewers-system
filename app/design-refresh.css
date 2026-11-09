@@ -50,3 +50,52 @@ body{font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased}
 .workers-directory .panel-head{align-items:center;gap:20px;flex-wrap:wrap}.workers-directory .panel-head label{margin:0;min-width:200px}.workers-directory>.notice,.workers-directory>.error,.workers-directory>.fineprint{margin:16px 24px}.workers-directory td small{display:block;margin-top:6px}.workers-directory .text-btn:disabled{opacity:.45;cursor:default}
 .quantity-field{min-width:0}.quantity-field>label{display:block;margin:0 0 8px}.quantity-stepper{display:grid;grid-template-columns:46px minmax(0,1fr) 46px;align-items:stretch;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#fff}.quantity-stepper input{width:100%;min-width:0;margin:0;border:0;border-radius:0;text-align:center;appearance:textfield;font-weight:700}.quantity-stepper input::-webkit-inner-spin-button,.quantity-stepper input::-webkit-outer-spin-button{appearance:none;margin:0}.quantity-stepper button{min-height:46px;border:0;background:#eef2f6;color:#002448;font-size:24px;font-weight:700;cursor:pointer;touch-action:manipulation}.quantity-stepper button:hover:not(:disabled){background:#ffedb8}.quantity-stepper button:disabled{opacity:.4;cursor:default}.quantity-stepper button:focus-visible{outline:3px solid #d99a00;outline-offset:-3px}.quantity-stepper:focus-within{border-color:#9a7000}
 @media(max-width:700px){.workspace-gate.branded-login{padding-top:12px;gap:16px}.branded-login>img{width:160px;margin:0;max-width:50vw}.branded-login .login-story{padding:20px 24px}.login-story h2{font-size:26px;letter-spacing:-.7px}.login-story .hero-kicker{font-size:8px;margin-bottom:10px}.branded-login .login-card{padding:24px}.login-lock{display:none}.workspace-gate .login-card>p{margin-bottom:18px}.login-card label{margin:14px 0}}
+
+/* Mobile workspace follows the Hewers Figma home wireframe. */
+.mobile-home,.mobile-dashboard-toggle{display:none}
+@media(max-width:700px){
+ .app-shell .content{padding:20px 16px 110px}
+ .app-shell[data-page="Overview"] .content{padding:0 0 110px}
+ .app-shell[data-page="Overview"]:not(.mobile-dashboard-expanded) .content>:not(.mobile-home):not(.mobile-dashboard-toggle):not(.error){display:none}
+ .app-shell[data-page="Overview"] .workforce-hero{display:none}
+ .app-shell[data-page="Overview"] .topbar{height:58px;min-height:58px;border:0}
+ .app-shell .topbar .top-actions>.avatar,.app-shell .topbar .top-actions>.badge{display:none}
+ .mobile-home{display:block;background:#fff}
+ .mobile-home-header{padding:22px 24px 27px;background:#062845;color:white;border-radius:0 0 26px 26px}
+ .mobile-home-header>img{display:block;width:188px;height:65px;object-fit:contain;margin:0 auto 23px;background:white;border-radius:9px;padding:7px 12px}
+ .mobile-home-profile{display:flex;align-items:center;gap:14px}
+ .mobile-profile-avatar{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;color:#062845;background:#f4b400;font-size:17px;font-weight:750;border:3px solid #ffffff35}
+ .mobile-home-profile p{font-size:12px;color:#c6d7e5;margin-bottom:4px}
+ .mobile-home-profile h1{font-size:21px;letter-spacing:-.5px;overflow-wrap:anywhere}
+ .mobile-home-profile div>span{display:block;font-size:11px;margin-top:4px;color:#c6d7e5}
+ .mobile-home-body{padding:22px 20px 10px}
+ .mobile-site{display:flex;align-items:center;gap:10px;background:#f2f5f9;border:1px solid #dbe4ed;border-radius:10px;padding:0 13px;color:#587087}
+ .mobile-site select{width:100%;min-width:0;min-height:46px;border:0;background:transparent;color:#062845;font-size:13px;padding:8px 0}
+ .mobile-home-actions{display:grid;gap:12px;margin:20px 0}
+ .mobile-main-action{border:0;border-radius:11px;display:flex;align-items:center;gap:12px;min-height:58px;padding:16px;color:#062845;background:#f4b400;font-size:15px;font-weight:700;text-align:left;box-shadow:0 4px 12px #06284509}
+ .mobile-main-action>svg:last-child{margin-left:auto}
+ .mobile-main-action.inventory{background:#062845;color:#fff}
+ .mobile-recent{padding:18px 15px 4px;background:#f2f5f9;border:1px solid #e4eaf0;border-radius:13px}
+ .mobile-recent-heading{display:flex;justify-content:space-between;gap:8px;align-items:center}
+ .mobile-recent-heading h2{font-size:14px;letter-spacing:-.2px}
+ .mobile-recent-heading button{display:flex;align-items:center;gap:4px;min-height:32px;border:0;background:transparent;color:#46617a;font-size:11px}
+ .mobile-recent-note{color:#738397;font-size:10px;margin:1px 0 8px}
+ .mobile-worker-row{width:100%;display:flex;align-items:center;gap:11px;background:transparent;color:#062845;border:0;border-top:1px solid #dfe6ee;padding:14px 0;text-align:left}
+ .mobile-worker-avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#dfe8f0;color:#365671;font-size:12px;font-weight:700;flex-shrink:0}
+ .mobile-worker-info{flex:1;min-width:0}.mobile-worker-info strong{font-size:14px;display:block;overflow-wrap:anywhere}.mobile-worker-info small{font-size:10px;line-height:1.5;margin-top:3px;color:#60778c}
+ .mobile-home-empty{padding:22px 0;text-align:center;color:#6f8192}.mobile-home-empty p{margin-top:8px}
+ .mobile-home-date{font-size:10px;text-align:center;color:#8191a0;margin-top:17px}
+ .mobile-dashboard-toggle{display:flex;align-items:center;justify-content:center;gap:9px;background:#fff;border:0;color:#315775;width:calc(100% - 40px);min-height:44px;margin:0 20px 20px;font-size:12px}
+ .mobile-dashboard-expanded[data-page="Overview"] .content>:not(.mobile-home):not(.mobile-dashboard-toggle){margin-left:16px;margin-right:16px}
+ .app-shell .mobile-tabbar{padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;gap:0;justify-content:space-around}
+ .app-shell .mobile-tabbar button{flex:1;min-width:0;border-radius:0;min-height:66px;gap:6px;font-size:10px}
+ .app-shell .mobile-tabbar button.active{background:transparent;color:#062845;position:relative}
+ .mobile-tabbar button.active:before{content:'';position:absolute;top:0;width:30px;height:3px;border-radius:0 0 4px 4px;background:#f4b400}
+ .app-shell .section-toolbar .tabs{overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start;scrollbar-width:thin;padding-bottom:5px}
+ .app-shell .section-toolbar .tabs button{flex:0 0 auto;min-height:44px}
+ .workspace-gate.branded-login .login-story{display:none}
+ .workspace-gate.branded-login{justify-content:center;background:#f2f5f9;min-height:100dvh;padding:36px 22px}
+ .branded-login>img{width:218px;max-width:70vw;margin-bottom:20px}
+ .branded-login .login-card{box-shadow:none;border:0;background:#fff;border-radius:15px;padding:28px 24px}
+}
+@media(max-width:700px){.app-shell[data-page="Overview"] .topbar .mobile-brand{display:none}.mobile-home-header{padding-top:10px}.mobile-home-header>img{margin-bottom:20px}.mobile-home-body{padding-top:20px}}
