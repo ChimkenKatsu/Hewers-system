@@ -1,5 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {admin,connection,missingConfig,requireConfig,accessToken,google,db} from '../../google-server';
+import {googlePhotoLabel} from '../../google-photo-label';
 import {googleRows} from '../../google-export';
 import {usesSupabase,storedPhoto} from '../../supabase-server';
 import {json,fail,originCheck} from '../../server-access';
@@ -23,17 +24,19 @@ export async function POST(req:Request){let owner='',lease=0;try{
  // Mirror only these three app-managed tabs. RAW prevents formula execution from names.
  await google(token,'sheets.googleapis.com/v4/spreadsheets/'+sheet+'/values:batchClear','POST',{ranges:Object.entries(rows).map(([title,values])=>title+'!A:'+String.fromCharCode(64+values[0].length))});
  await google(token,'sheets.googleapis.com/v4/spreadsheets/'+sheet+'/values:batchUpdate','POST',{valueInputOption:'RAW',data:Object.entries(rows).map(([range,values])=>({range:range+'!A1',values}))});
- let uploaded=0,pending=0;
+ let uploaded=0,relabeled=0,pending=0;
  for(const photo of ctx.state.photos){
   const q="trashed = false and '"+folder+"' in parents and appProperties has { key='hewersPhoto' and value='"+photo.id.replace(/['\\]/g,'')+"' }";
-  const existing=await google(token,'www.googleapis.com/drive/v3/files?fields=files(id)&q='+encodeURIComponent(q));if((existing.files as unknown[])?.length)continue;
+  const existing=await google(token,'www.googleapis.com/drive/v3/files?fields=files(id,name,mimeType,description)&q='+encodeURIComponent(q));
+  const saved=(existing.files as {id:string;name:string;mimeType:string;description?:string}[])?.[0];
+  if(saved){const label=googlePhotoLabel(photo,ctx.state.sites,saved.mimeType);if(saved.name!==label.name||saved.description!==label.description){await google(token,'www.googleapis.com/drive/v3/files/'+encodeURIComponent(saved.id),'PATCH',label);relabeled++;}continue;}
   if(uploaded>=10){pending++;continue;}
   const path=new URL(photo.url,'https://local').searchParams.get('key');if(!path||!path.startsWith(owner+'/'))throw Error('A photo has an invalid workspace path');
   let bytes:ArrayBuffer,type:string;if(usesSupabase()){const r=await storedPhoto(path);bytes=await r.arrayBuffer();type=r.headers.get('Content-Type')||'image/jpeg';}else{const obj=await env.BUCKET!.get(path);if(!obj)throw Error('A source photo is missing. Sync did not finish.');bytes=await obj.arrayBuffer();type=obj.httpMetadata?.contentType||'image/jpeg';}
-  const start=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','X-Upload-Content-Type':type,'X-Upload-Content-Length':String(bytes.byteLength)},body:JSON.stringify({name:photo.id+'.'+(type==='image/png'?'png':type==='image/webp'?'webp':'jpg'),description:photo.caption,parents:[folder],appProperties:{hewersPhoto:photo.id}}),signal:AbortSignal.timeout(30000)});
+  const start=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','X-Upload-Content-Type':type,'X-Upload-Content-Length':String(bytes.byteLength)},body:JSON.stringify({...googlePhotoLabel(photo,ctx.state.sites,type),parents:[folder],appProperties:{hewersPhoto:photo.id}}),signal:AbortSignal.timeout(30000)});
   const location=start.headers.get('Location');if(!start.ok||!location||new URL(location).origin!=='https://www.googleapis.com')throw Error('Google photo upload could not start. Retry sync.');
   const result=await fetch(location,{method:'PUT',headers:{'Content-Type':type,Authorization:'Bearer '+token},body:bytes,signal:AbortSignal.timeout(60000)});if(!result.ok)throw Error('Google photo upload did not finish. Retry sync.');uploaded++;
  }
  if(!pending)await store.prepare('UPDATE google_connections SET last_sync=? WHERE owner=?').bind(new Date().toISOString(),owner).run();
- return json({ok:true,pending,message:pending?'Reports updated; '+uploaded+' photos uploaded. Click Sync now to continue the remaining '+pending+' photos.':'Attendance, inventory, and site photos are synced.'});
+ return json({ok:true,pending,message:pending?'Reports updated; '+uploaded+' photos uploaded. Click Sync now to continue the remaining '+pending+' photos.':'Attendance, inventory, and site photos are synced.'+(relabeled?' '+relabeled+' existing photo labels updated.':'')});
 }catch(e){return fail(e)}finally{if(owner&&lease)await (await db()).prepare('UPDATE google_connections SET lease=0 WHERE owner=? AND lease=?').bind(owner,lease).run();}}
