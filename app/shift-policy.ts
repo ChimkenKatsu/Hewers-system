@@ -12,6 +12,13 @@ export function attendanceShift(record:Attendance){
  const minutes=Math.max(0,Math.ceil((Date.parse(record.timeIn)-shiftTime(day(record.timeIn),REGULAR_START))/60000));
  return {label:minutes?'Late · '+minutes+' min':'On time',lateMinutes:minutes};
 }
+export function validateOvertimeCorrection(state:State,record:Attendance,timeIn:string){
+ if(record.shiftKind!=='overtime')return;
+ const approval=state.overtimeApprovals?.find(a=>a.id===record.overtimeApprovalId);
+ const start=Date.parse(timeIn);
+ if(!approval||approval.workerId!==record.workerId||approval.siteId!==record.siteId||approval.usedAttendanceId!==record.id||approval.revokedAt||day(timeIn)!==approval.date||start<shiftTime(approval.date,REGULAR_END)||start<Date.parse(approval.approvedAt)||start>=shiftTime(approval.date,approval.endTime))throw Error('Corrected overtime must start after its approval, at or after 5:00 PM, and before the approved end on the approved date.');
+ return new Date(shiftTime(approval.date,approval.endTime)).toISOString();
+}
 export function checkShiftEntry(state:State,workerId:string,now:string){
  const date=day(now),time=Date.parse(now);
  if(state.attendance.some(a=>a.workerId===workerId&&!a.timeOut))throw Error('This worker already has an open attendance record');

@@ -1,4 +1,5 @@
 import type {State,ReviewRecord} from './model';
+import {validateOvertimeCorrection} from './shift-policy';
 const uid=()=>crypto.randomUUID();
 const reason=(v:unknown)=>{if(typeof v!=='string'||v.trim().length<10||v.length>500)throw Error('Explain the reason using 10 to 500 characters');return v.trim();};
 function timestamp(v:unknown,now:string){if(typeof v!=='string'||!/^\d{4}-\d\d-\d\dT/.test(v)||!Number.isFinite(Date.parse(v))||Date.parse(v)>Date.parse(now))throw Error('Enter a valid time that is not in the future');return new Date(v).toISOString();}
@@ -26,14 +27,14 @@ export function applyReviewOperation(original:State,action:string,p:Record<strin
   if(p.expectedIn!==a.timeIn||p.expectedOut!==a.timeOut)throw Error('CONFLICT: Attendance changed while entering the correction. Select the record again.');
   s.attendanceCorrections??=[];if(s.attendanceCorrections.some(r=>r.attendanceId===a.id&&r.status==='pending'))throw Error('A correction for this attendance record is already pending');
   const proposedIn=timestamp(p.proposedIn,now),proposedOut=p.proposedOut===null?null:timestamp(p.proposedOut,now);
-  if(proposedIn===a.timeIn&&proposedOut===a.timeOut)throw Error('Change at least one attendance time');validAttendance(s,a.workerId,a.id,proposedIn,proposedOut);
+  if(proposedIn===a.timeIn&&proposedOut===a.timeOut)throw Error('Change at least one attendance time');validAttendance(s,a.workerId,a.id,proposedIn,proposedOut);validateOvertimeCorrection(s,a,proposedIn);
   s.attendanceCorrections.push({id,attendanceId:a.id,workerId:a.workerId,siteId,status:'pending',reason:reason(p.reason),created:now,createdBy:actor,createdById:actorId,originalIn:a.timeIn,originalOut:a.timeOut,proposedIn,proposedOut});message='Attendance correction requested';
  }else if(action==='attendance-correction-review'){
   const r=s.attendanceCorrections?.find(r=>r.id===p.requestId);if(!r)throw Error('Correction request not found');siteId=r.siteId;
   decide(r,p,actor,now,actorId);
   if(r.status==='accepted'){
    const a=s.attendance.find(a=>a.id===r.attendanceId);if(!a||a.timeIn!==r.originalIn||a.timeOut!==r.originalOut)throw Error('CONFLICT: Attendance changed after this request. Decline it and submit a fresh correction.');
-   validAttendance(s,r.workerId,r.attendanceId,r.proposedIn,r.proposedOut);a.timeIn=r.proposedIn;a.timeOut=r.proposedOut;a.correctionId=r.id;
+   validAttendance(s,r.workerId,r.attendanceId,r.proposedIn,r.proposedOut);const approvedEnd=validateOvertimeCorrection(s,a,r.proposedIn);a.timeIn=r.proposedIn;a.timeOut=r.proposedOut;a.correctionId=r.id;if(approvedEnd)a.shiftEndAt=approvedEnd;
    a.note=(a.note+' | Admin-approved correction '+r.id+': '+r.reason).slice(-2000);
   }
   message=(r.status==='accepted'?'Accepted':'Declined')+' attendance correction';

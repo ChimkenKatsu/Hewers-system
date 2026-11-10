@@ -11,8 +11,18 @@ export function readWorkspaceRoute(hash:string,search=''){
  const requestedTab=new URLSearchParams(query).get('tab')||'';
  return {page,tab:tabs[page]?.includes(requestedTab)?requestedTab:defaultWorkspaceTab(page)};
 }
-export function workspaceRouteHash(page:string,tab=defaultWorkspaceTab(page)){
+export type WorkspaceFilters={site?:string;date?:string};
+const validSite=(value:string)=>value==='all'||/^[a-zA-Z0-9_-]{1,128}$/.test(value);
+const validDate=(value:string)=>/^\d{4}-\d\d-\d\d$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+export function readWorkspaceFilters(hash:string){
+ const params=new URLSearchParams(hash.split('?')[1]||'');const site=params.get('site')||'all',date=params.get('date')||'';
+ return {site:validSite(site)?site:'all',date:validDate(date)?date:''};
+}
+export function workspaceRouteHash(page:string,tab=defaultWorkspaceTab(page),filters:WorkspaceFilters={}){
  const safePage=pages.includes(page)?page:'Overview';
  const safeTab=tabs[safePage]?.includes(tab)?tab:defaultWorkspaceTab(safePage);
- return '#'+encodeURIComponent(safePage)+(tabs[safePage]&&safeTab!==defaultWorkspaceTab(safePage)?'?'+new URLSearchParams({tab:safeTab}).toString():'');
+ const params=new URLSearchParams();if(tabs[safePage]&&safeTab!==defaultWorkspaceTab(safePage))params.set('tab',safeTab);
+ if(filters.site&&filters.site!=='all'&&validSite(filters.site))params.set('site',filters.site);
+ if(filters.date&&validDate(filters.date))params.set('date',filters.date);
+ return '#'+encodeURIComponent(safePage)+(params.size?'?'+params.toString():'');
 }

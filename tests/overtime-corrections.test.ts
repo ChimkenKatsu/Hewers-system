@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {emptyState} from '../app/model';
+import {applyOperation} from '../app/operations';
+const state=emptyState();state.sites=[{id:'s',name:'Site',location:'Test'}];state.workers=[{id:'w',name:'Worker',trade:'Mason',siteId:'s'}];state.attendance=[{id:'regular',workerId:'w',siteId:'s',timeIn:'2026-11-10T00:00:00Z',timeOut:'2026-11-10T08:00:00Z',method:'Manual',note:''}];
+let s=applyOperation(state,'overtime-approve',{workerId:'w',date:'2026-11-10',endTime:'20:00',reason:'Approved finishing work'},'admin','2026-11-10T09:01:00Z');
+s=applyOperation(s,'attendance',{workerId:'w',type:'in',note:'Overtime entry'},'operator','2026-11-10T09:05:00Z');s=applyOperation(s,'attendance',{workerId:'w',type:'out'},'operator','2026-11-10T11:00:00Z');
+const a=s.attendance[1],now='2026-11-12T12:00:00Z';
+const payload={attendanceId:a.id,expectedIn:a.timeIn,expectedOut:a.timeOut,proposedIn:'2026-11-10T09:10:00Z',proposedOut:'2026-11-10T13:00:00Z',reason:'Supervisor confirmed actual times'};
+for(const proposedIn of ['2026-11-10T08:30:00Z','2026-11-10T09:00:00Z','2026-11-10T12:00:00Z'])assert.throws(()=>applyOperation(s,'attendance-correction-request',{...payload,proposedIn},'requester',now,'submitter-id'),/Corrected overtime/);
+assert.throws(()=>applyOperation(s,'attendance-correction-request',{...payload,proposedIn:'2026-11-11T09:10:00Z',proposedOut:'2026-11-11T13:00:00Z'},'requester',now,'submitter-id'),/approved date/);
+const pending=applyOperation(s,'attendance-correction-request',payload,'requester',now,'submitter-id');
+const review={requestId:pending.attendanceCorrections![0].id,decision:'accepted'};
+const oldPending=structuredClone(pending);oldPending.attendanceCorrections![0].proposedIn='2026-11-10T08:30:00Z';
+assert.throws(()=>applyOperation(oldPending,'attendance-correction-review',review,'reviewer',now,'reviewer-id'),/Corrected overtime/,'Revalidate requests created before this fix');assert.equal(oldPending.attendanceCorrections![0].status,'pending');
+const accepted=applyOperation(pending,'attendance-correction-review',review,'reviewer',now,'reviewer-id');
+assert.equal(accepted.attendance[1].timeIn,new Date(payload.proposedIn).toISOString());assert.equal(accepted.attendance[1].timeOut,new Date(payload.proposedOut).toISOString(),'Preserve actual departure after approval end');assert.equal(accepted.attendance[1].shiftKind,'overtime');assert.equal(accepted.attendance[1].shiftEndAt,'2026-11-10T12:00:00.000Z');assert.equal(accepted.attendanceCorrections![0].originalIn,a.timeIn);
+console.log('PASS: reject overtime before 5 PM, before authorization, at expiry and on another date; recheck pending approvals; preserve valid actual departures and original history');
