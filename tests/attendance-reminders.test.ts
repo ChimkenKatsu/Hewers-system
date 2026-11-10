@@ -10,7 +10,7 @@ assert.equal(missingTimeouts(state,auditor,Date.parse('2026-11-05T09:59:59Z')).l
 const due=missingTimeouts(state,auditor,Date.parse('2026-11-05T10:00:00Z'));assert.equal(due.length,1);assert.equal(due[0].name,'Worker');assert.equal(due[0].dueAt,'2026-11-05T10:00:00.000Z');
 assert.equal(missingTimeouts(state,{...auditor,siteIds:['other']},Date.parse('2026-11-06T10:00:00Z')).length,0);
 assert.equal(missingTimeouts(state,{...auditor,role:'viewer'},Date.parse('2026-11-06T10:00:00Z')).length,0);
-let copy=structuredClone(state);copy.sites[0].shiftEnd=undefined;assert.equal(missingTimeouts(copy,auditor,Date.parse('2026-11-06T10:00:00Z')).length,0);
+let copy=structuredClone(state);copy.sites[0].shiftEnd=undefined;assert.equal(missingTimeouts(copy,auditor,Date.parse('2026-11-06T10:00:00Z')).length,1,'Unconfigured sites default to 17:00');copy.sites[0].remindersDisabled=true;assert.equal(missingTimeouts(copy,auditor,Date.parse('2026-11-06T10:00:00Z')).length,0);
 copy=structuredClone(state);copy.attendance[0].timeOut='2026-11-05T09:00:00Z';assert.equal(missingTimeouts(copy,auditor,Date.parse('2026-11-06T10:00:00Z')).length,0);
 copy=structuredClone(state);copy.attendance[0].timeIn='2026-11-05T11:00:00Z';assert.equal(missingTimeouts(copy,auditor,Date.parse('2026-11-06T09:59:59Z')).length,0);assert.equal(missingTimeouts(copy,auditor,Date.parse('2026-11-06T10:00:00Z')).length,1,'Evening check-in is due next day');
 assert.equal(workspaceNotifications(state,auditor,Date.parse('2026-11-05T10:00:00Z'))[0].kind,'missing-timeout');

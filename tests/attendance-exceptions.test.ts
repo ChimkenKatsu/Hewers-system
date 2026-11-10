@@ -15,8 +15,8 @@ assert.deepEqual(attendanceExceptions(state,admin,at('2026-11-06T10:00:00Z'))[0]
 assert.deepEqual(attendanceExceptions(state,admin,at('2026-11-06T16:00:00Z'))[0].issues,['missing'],'Exactly 16 hours is not a long session');
 assert.deepEqual(attendanceExceptions(state,admin,at('2026-11-06T16:01:00Z'))[0].issues,['missing','long'],'One card combines multiple indicators');
 let copy=structuredClone(state);copy.sites[0].shiftEnd=undefined;
-assert.equal(attendanceExceptions(copy,admin,at('2026-11-06T15:59:59Z')).length,0);
-assert.deepEqual(attendanceExceptions(copy,admin,at('2026-11-06T16:00:00Z'))[0].issues,['missing'],'Fallback changes at PHT midnight');
+assert.equal(attendanceExceptions(copy,admin,at('2026-11-06T08:59:59Z')).length,0);
+assert.deepEqual(attendanceExceptions(copy,admin,at('2026-11-06T09:00:00Z'))[0].issues,['missing'],'Unconfigured sites default to 5 PM PHT');
 copy=structuredClone(state);copy.attendance[0].timeIn='2026-11-06T11:00:00Z';
 assert.equal(attendanceExceptions(copy,admin,at('2026-11-06T16:00:00Z')).length,0,'Evening check-in uses next day cutoff');
 copy=structuredClone(state);copy.attendance[0].timeOut='2026-11-06T17:00:00Z';

@@ -1,3 +1,4 @@
+import {checkShiftEntry} from '../../shift-policy';
 import {recordDiagnostic,diagnosticId} from '../../scan-diagnostics-server';
 import {scanReason} from '../../scan-reasons';
 import {motionChallenge,checkMotion} from '../../face-motion-server';
@@ -27,7 +28,7 @@ export async function POST(req:Request){
   if((purpose==='in'&&open)||(purpose==='out'&&!open))return finish(json({error:open?'This worker is already checked in. Choose Time out.':'This worker has no open check-in. Choose Time in.',code:'duplicate'},409),'rejected','duplicate');
  }
  if(p.action==='challenge'){
-  const now=Date.now();
+  const now=Date.now();if(purpose==='in')checkShiftEntry(ctx.state,p.workerId,new Date(now).toISOString());
   const recent=usesSupabase()?await sb('hewers_face_challenges?workspace_id='+eq(ctx.access.owner)+'&operator_id='+eq(ctx.access.userId)+'&created_at=gt.'+encodeURIComponent(new Date(now-60000).toISOString())+'&select=worker_id'):(await env.DB!.prepare('SELECT worker_id FROM face_challenges WHERE owner=? AND user_id=? AND created>?').bind(ctx.access.owner,ctx.access.userId,now-60000).all<{worker_id:string}>()).results;
   if(recent.filter((r:{worker_id:string})=>r.worker_id===p.workerId).length>=6)throw Error('RATE: Too many attempts for this worker. Wait one minute before retrying their scan.');
   if(recent.length>=30)throw Error('RATE: This operator reached the scan limit. Wait one minute.');
