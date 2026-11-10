@@ -11,7 +11,8 @@ export type ReviewRecord={id:string;siteId:string;status:ReviewStatus;reason:str
 export type AttendanceCorrection=ReviewRecord&{attendanceId:string;workerId:string;originalIn:string;originalOut:string|null;proposedIn:string;proposedOut:string|null};
 export type StockReconciliation=ReviewRecord&{materialId:string;systemBalance:number;countedBalance:number;movementId?:string};
 export type OvertimeApproval={id:string;workerId:string;siteId:string;date:string;endTime:string;reason:string;approvedBy:string;approvedAt:string;usedAttendanceId?:string;revokedAt?:string};
-export type State={overtimeApprovals?:OvertimeApproval[];attendanceCorrections?:AttendanceCorrection[];stockReconciliations?:StockReconciliation[];workerRequests?:WorkerRequest[];sites:Site[];workers:Worker[];attendance:Attendance[];materials:Material[];movements:Movement[];photos:Evidence[];audit:Audit[]};
+export type MovementReceipt={id:string;userId:string;fingerprint:string;movementId:string};
+export type State={movementReceipts?:MovementReceipt[];overtimeApprovals?:OvertimeApproval[];attendanceCorrections?:AttendanceCorrection[];stockReconciliations?:StockReconciliation[];workerRequests?:WorkerRequest[];sites:Site[];workers:Worker[];attendance:Attendance[];materials:Material[];movements:Movement[];photos:Evidence[];audit:Audit[]};
 export const emptyState=():State=>({sites:[],workers:[],attendance:[],materials:[],movements:[],photos:[],audit:[]});
 export const day=(value:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
 export function demoState():State{
