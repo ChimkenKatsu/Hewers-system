@@ -4,6 +4,7 @@ const uid=()=>crypto.randomUUID();
 const reason=(v:unknown)=>{if(typeof v!=='string'||v.trim().length<10||v.length>500)throw Error('Explain the reason using 10 to 500 characters');return v.trim();};
 function timestamp(v:unknown,now:string){if(typeof v!=='string'||!/^\d{4}-\d\d-\d\dT/.test(v)||!Number.isFinite(Date.parse(v))||Date.parse(v)>Date.parse(now))throw Error('Enter a valid time that is not in the future');return new Date(v).toISOString();}
 function validAttendance(s:State,workerId:string,exclude:string,timeIn:string,timeOut:string|null){
+ if(timeOut===null&&s.workers.some(w=>w.id===workerId&&w.archivedAt))throw Error('Restore this archived worker before reopening attendance. Completed attendance can still be corrected.');
  const start=Date.parse(timeIn),end=timeOut?Date.parse(timeOut):Infinity;
  if(end<=start)throw Error('Time out must be later than time in');
  if(s.attendance.some(a=>a.workerId===workerId&&a.id!==exclude&&start<(a.timeOut?Date.parse(a.timeOut):Infinity)&&end>Date.parse(a.timeIn)))throw Error('These times overlap another attendance record');
