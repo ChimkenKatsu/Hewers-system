@@ -22,7 +22,7 @@ export async function POST(req:Request){try{
   if(!key||!key.startsWith(ctx.access.owner+'/'))throw Error('FORBIDDEN: Photo belongs to another workspace');
   const photo=usesSupabase()?(await sb('hewers_photo_uploads?workspace_id='+eq(ctx.access.owner)+'&storage_path='+eq(key)+'&select=site_id')).map((p:any)=>({customMetadata:{siteId:p.site_id}}))[0]:await env.BUCKET!.head(key);if(!photo||photo.customMetadata?.siteId!==body.payload.siteId)throw Error('Photo does not belong to this site');
  }
- const state=applyOperation(ctx.state,body.action==='worker'&&ctx.access.role==='auditor'?'worker-request':body.action,body.payload,ctx.access.email);
+ const state=applyOperation(ctx.state,body.action==='worker'&&ctx.access.role==='auditor'?'worker-request':body.action,body.payload,ctx.access.email,new Date().toISOString(),ctx.access.userId);
  const result=await commit(ctx,state);
  await sendWorkerPush(ctx.access.owner,ctx.state,state);
  return json(result);

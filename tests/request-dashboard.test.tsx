@@ -9,7 +9,7 @@ data.workerRequests=[
  {id:'pending',siteId:'s',name:'Pending worker',trade:'Mason',createdBy:'auditor1',created:'2026-11-05T00:00:00Z',status:'pending'},
  {id:'approved',siteId:'s',name:'Approved worker',trade:'Mason',createdBy:'auditor1',created:'2026-11-05T00:00:00Z',status:'accepted',reviewedBy:'admin1',reviewedAt:'2026-11-05T01:00:00Z'},
 ];
-const props={data,workspaceId:'test',revision:1,actor:'admin1',onUpdated:()=>{}};
+const props={data,workspaceId:'test',revision:1,actor:'admin1',actorId:'admin-account-id',onUpdated:()=>{}};
 const admin=renderToStaticMarkup(<RequestsDashboard {...props} admin/>);
 assert.match(admin,/Approval queue/);
 assert.match(admin,/Pending worker/);

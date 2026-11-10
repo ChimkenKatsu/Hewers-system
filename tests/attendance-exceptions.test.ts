@@ -5,7 +5,7 @@ import {visibleState,type Access} from '../app/permissions';
 import {applyReviewOperation} from '../app/review-operations';
 
 const admin:Access={role:'administrator',owner:'o',userId:'u',email:'admin1',siteIds:[]};
-const auditor:Access={...admin,role:'auditor',email:'auditor1',siteIds:['s']};
+const auditor:Access={...admin,role:'auditor',userId:'auditor-id',email:'auditor1',siteIds:['s']};
 const state=emptyState();state.sites=[{id:'s',name:'Site',location:'Test',shiftEnd:'18:00'},{id:'other',name:'Other',location:'Test'}];
 state.workers=[{id:'w',name:'Worker',trade:'Mason',siteId:'s'},{id:'other-worker',name:'Private worker',trade:'Mason',siteId:'other'}];
 state.attendance=[{id:'a',workerId:'w',siteId:'s',timeIn:'2026-11-06T00:00:00Z',timeOut:null,method:'Manual',note:''}];
@@ -26,11 +26,11 @@ copy.attendance.push({...state.attendance[0],id:'private',siteId:'other',workerI
 assert.equal(attendanceExceptions(copy,auditor,at('2026-11-07T00:00:00Z')).length,0,'Auditors never see other-site exceptions');
 assert.equal(attendanceExceptions(state,{...admin,role:'viewer'},at('2026-11-07T00:00:00Z')).length,0);
 const now='2026-11-07T00:00:00Z',request={attendanceId:'a',expectedIn:state.attendance[0].timeIn,expectedOut:null,proposedIn:state.attendance[0].timeIn,proposedOut:'2026-11-06T09:00:00Z',reason:'Worker left at the confirmed time'};
-const pending=applyReviewOperation(state,'attendance-correction-request',request,'auditor1',now);
+const pending=applyReviewOperation(state,'attendance-correction-request',request,'auditor1',now,auditor.userId);
 assert.deepEqual(pending.attendance,state.attendance,'Request does not change recorded times');
 const pendingRows=attendanceExceptions(visibleState(pending,auditor),auditor,at(now));
 assert.deepEqual(pendingRows[0].issues,['missing','long','pending']);assert.equal(pendingRows[0].pendingCount,1);
-const resolved=applyReviewOperation(pending,'attendance-correction-review',{requestId:pending.attendanceCorrections![0].id,decision:'accepted'},'admin1',now);
+const resolved=applyReviewOperation(pending,'attendance-correction-review',{requestId:pending.attendanceCorrections![0].id,decision:'accepted'},'admin1',now,admin.userId);
 assert.equal(attendanceExceptions(resolved,admin,at(now)).length,0,'Approved correction clears resolved exceptions');
 assert.equal(resolved.attendanceCorrections![0].originalOut,null,'Original time remains in review history');
 copy=structuredClone(state);copy.attendance[0].timeIn='invalid';assert.equal(attendanceExceptions(copy,admin,at(now)).length,0);

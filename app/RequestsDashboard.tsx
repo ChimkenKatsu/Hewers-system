@@ -4,7 +4,7 @@ import type {State} from './model';
 import ReviewPanel from './ReviewPanel';
 import WorkerApprovals from './WorkerApprovals';
 
-type Props={data:State;workspaceId:string;revision:number;admin:boolean;actor:string;focusRequestId?:string;onUpdated:(state:State,revision:number)=>void};
+type Props={data:State;workspaceId:string;revision:number;admin:boolean;actor:string;actorId:string;focusRequestId?:string;onUpdated:(state:State,revision:number)=>void};
 type Status='all'|'pending'|'accepted'|'declined';
 export default function RequestsDashboard({data,admin,focusRequestId,...props}:Props){
  const [status,setStatus]=useState<Status>(admin&&!focusRequestId?'pending':'all');
