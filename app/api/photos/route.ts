@@ -1,4 +1,5 @@
-import {usesSupabase,storedPhoto,registerUpload} from '../../supabase-server';
+import {usesSupabase,storedPhoto} from '../../supabase-server';
+import {stagePhoto} from '../../photo-uploads-server';
 import {env} from 'cloudflare:workers';
 import {context,originCheck,json,fail} from '../../server-access';
 import {authorize,requireSite} from '../../permissions';
@@ -8,7 +9,7 @@ export async function POST(req:Request){try{
  const data=await req.formData(),file=data.get('file'),siteId=String(data.get('siteId')||'');authorize(ctx.access,ctx.state,'photo',{siteId});
  if(!(file instanceof File)||file.size>8*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Choose a JPG, PNG or WebP photo under 8 MB');
  const bytes=await file.arrayBuffer(),a=new Uint8Array(bytes);const valid=(file.type==='image/jpeg'&&a[0]===255&&a[1]===216&&a[2]===255)||(file.type==='image/png'&&a[0]===137&&a[1]===80&&a[2]===78&&a[3]===71)||(file.type==='image/webp'&&String.fromCharCode(...a.slice(0,4))==='RIFF'&&String.fromCharCode(...a.slice(8,12))==='WEBP');if(!valid)throw Error('Invalid image file');
- const key=ctx.access.owner+'/'+crypto.randomUUID();if(usesSupabase()){await storedPhoto(key,'POST',bytes,file.type);await registerUpload(ctx.access.owner,siteId,key)}else await env.BUCKET!.put(key,bytes,{httpMetadata:{contentType:file.type},customMetadata:{siteId}});
+ const key=await stagePhoto(ctx.access,siteId,bytes,file.type,data.get('uploadId'));
  return json({url:'/api/photos?key='+encodeURIComponent(key)});
 }catch(e){return fail(e)}}
 export async function GET(req:Request){try{

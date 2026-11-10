@@ -1,4 +1,5 @@
-export type FormDraft={id:string;form:Record<string,string|number>;file?:File;updated:number};
+export type PhotoUploadDraft={id:string;stamp:string;url?:string;uploadedAt?:number};
+export type FormDraft={id:string;form:Record<string,string|number>;file?:File;photoUpload?:PhotoUploadDraft;updated:number};
 let connection:Promise<IDBDatabase>|undefined;
 function database(){return connection??=(new Promise<IDBDatabase>((resolve,reject)=>{const open=indexedDB.open('hewers-form-drafts',1);open.onupgradeneeded=()=>open.result.createObjectStore('drafts',{keyPath:'id'});open.onsuccess=()=>resolve(open.result);open.onerror=()=>reject(open.error);open.onblocked=()=>reject(Error('Draft storage is busy in another tab'))})).catch(e=>{connection=undefined;throw e})}
 const writes=new Map<string,Promise<unknown>>();

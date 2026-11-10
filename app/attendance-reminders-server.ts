@@ -1,3 +1,4 @@
+import {cleanupPhotoUploads} from './photo-uploads-server';
 import {env} from 'cloudflare:workers';
 import {usesSupabase,sb,eq} from './supabase-server';
 import {missingTimeouts} from './attendance-reminders';
@@ -5,6 +6,7 @@ import {sendAttendanceReminder} from './push-server';
 import type {State} from './model';
 /** Runs server-side every five minutes, even when no browser or phone is open. */
 export async function runAttendanceReminders(dryRun=false,now=Date.now()){
+ try{await cleanupPhotoUploads(dryRun,now)}catch{console.warn('Photo upload cleanup unavailable')}
  const workspaces=await env.DB!.prepare("SELECT DISTINCT workspace_id FROM auth_user WHERE active=1 AND role='auditor' AND must_change_password=0").all<{workspace_id:string}>();
  const result={due:0,delivered:0,failed:0};let attempts=0;
  for(const {workspace_id:owner} of workspaces.results){

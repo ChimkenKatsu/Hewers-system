@@ -16,6 +16,9 @@ export async function storedPhoto(key:string,method='GET',body?:ArrayBuffer,type
  if(!r.ok)throw Error('Photo storage request failed ('+r.status+'). Please try again.');return r;
 }
 export async function registerUpload(owner:string,siteId:string,key:string){await sb('hewers_photo_uploads','POST',{workspace_id:owner,site_id:siteId,storage_path:key},'resolution=merge-duplicates');}
+export async function removeStoredPhoto(key:string){
+ const c=config();const r=await fetch(c.SUPABASE_URL+'/storage/v1/object/hewers-site-photos',{method:'DELETE',headers:{apikey:c.SUPABASE_SECRET_KEY!,'Content-Type':'application/json'},body:JSON.stringify({prefixes:[key]}),signal:AbortSignal.timeout(25000)});if(!r.ok)throw Error('Abandoned photo cleanup failed');
+}
 export async function syncTeamAccounts(owner:string){
  if(!usesSupabase())return;
  const rows=await env.DB!.prepare('SELECT id,username,name,role,site_ids,active,must_change_password FROM auth_user WHERE workspace_id=?').bind(owner).all<{id:string;username:string;name:string;role:string;site_ids:string;active:number;must_change_password:number}>();
