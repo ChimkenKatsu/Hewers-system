@@ -1,4 +1,4 @@
-import {checkShiftEntry,shiftTime,REGULAR_END} from './shift-policy';
+import {checkShiftEntry,shiftTime,REGULAR_END,overtimeApprovalStatus} from './shift-policy';
 import {day} from './model';
 import type {State} from './model';
 import {applyReviewOperation,reviewActions} from './review-operations';
@@ -48,7 +48,7 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
   const date=day(now);if(p.date!==date)throw Error('Approve overtime for today in Philippine Time');
   if(typeof p.endTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.endTime)||shiftTime(date,p.endTime)<=Math.max(Date.parse(now),shiftTime(date,REGULAR_END)))throw Error('Overtime end must be after 5:00 PM and the current time, on the same day');
   if(!s.attendance.some(a=>a.workerId===worker.id&&day(a.timeIn)===date&&a.shiftKind!=='overtime'&&a.timeOut))throw Error('Complete the regular attendance record before approving a separate overtime session');
-  s.overtimeApprovals??=[];if(s.overtimeApprovals.some(a=>a.workerId===worker.id&&a.date===date&&!a.usedAttendanceId&&!a.revokedAt))throw Error('This worker already has an unused overtime approval');
+  s.overtimeApprovals??=[];if(s.overtimeApprovals.some(a=>a.workerId===worker.id&&a.date===date&&overtimeApprovalStatus(a,Date.parse(now))==='Available'))throw Error('This worker already has an unused overtime approval');
   s.overtimeApprovals.push({id,workerId:worker.id,siteId:worker.siteId,date,endTime:p.endTime,reason:text(p.reason,'overtime reason',500),approvedBy:actor,approvedAt:now});message='Approved overtime for '+worker.name+' until '+p.endTime+' PHT';
  }
  else if(action==='overtime-revoke'){
