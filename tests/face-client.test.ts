@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
-import {validateMotion} from '../app/face-motion';
+import {validateMotion,validateStationary} from '../app/face-motion';
 import {validatePair} from '../app/face-math';
-import {captureDescriptor,captureMotion,captureSequence,inspectCapture} from '../app/face-client';
+import {captureDescriptor,captureMotion,captureSequence,inspectCapture,loadFaceEngine} from '../app/face-client';
 // Exercise capture scheduling with a fake engine. This is not a camera accuracy benchmark.
 let detections=0,descriptions=0,aligned=0,canvases=0,frameVersion=0;
 const descriptor=Array(128).fill(.1);
 const eye=(x:number,ratio:number)=>[{x:x-10,y:100},{x:x-5,y:100-ratio*10},{x:x+5,y:100-ratio*10},{x:x+10,y:100},{x:x+5,y:100+ratio*10},{x:x-5,y:100+ratio*10}];
 let prompt='',mode='normal';
-const api={tf:{setBackend:async()=>true,ready:async()=>{}},nets:Object.fromEntries(['ssdMobilenetv1','faceLandmark68Net','faceRecognitionNet'].map(n=>[n,{loadFromUri:async()=>{}}])),SsdMobilenetv1Options:class{},
+const api={tf:{setBackend:async()=>true,ready:async()=>{}},nets:Object.fromEntries(['ssdMobilenetv1','faceLandmark68Net','faceRecognitionNet'].map(n=>[n,{loadFromUri:async()=>{},detectLandmarks:async()=>{}}])),SsdMobilenetv1Options:class{},
  detectAllFaces(){detections++;return {withFaceLandmarks:async()=>{if(mode==='gpu-error')throw Error('Tensor backend failed');
   // Every other poll deliberately fails the eye/head action; descriptors must
   // only run after the landmark gate accepts a frame.
@@ -23,6 +23,9 @@ Object.defineProperty(globalThis,'document',{value:{createElement:()=>{canvases+
 const video={videoWidth:640,videoHeight:480,readyState:2} as HTMLVideoElement;
 const now=Date.now;let clock=100000;Date.now=()=>clock+=200;
 try{
+ await loadFaceEngine();assert.equal(descriptions,1,'Recognition is warmed before a real capture');
+ await loadFaceEngine();assert.equal(descriptions,1,'Warm-up must run only once per engine');
+ detections=0;descriptions=0;canvases=0;
  assert.deepEqual(await captureDescriptor(video),descriptor);
  const frames=await captureMotion(video,['eyes','right'],clock,s=>prompt=s,()=>true);
  assert.equal(frames.length,6);assert.equal(descriptions,7);assert.equal(aligned,7);
@@ -32,7 +35,8 @@ try{
  const captures=await Promise.all([captureDescriptor(video),inspectCapture(video),captureDescriptor(video)]);assert.deepEqual(captures[0],descriptor);assert.deepEqual(captures[2],descriptor);assert.equal(canvases,1);
  const beforeSequence=descriptions;const sequence=await captureSequence(video,['eyes','right'],clock,s=>prompt=s,()=>true);assert.equal(descriptions-beforeSequence,6,'Use six motion descriptors, not eight separate captures');assert.equal(sequence.samples[0],sequence.frames[0].descriptor);assert.equal(sequence.samples[1],sequence.frames[5].descriptor);validatePair(sequence.samples);assert.equal(validateMotion(['eyes','right'],sequence.frames,sequence.samples,70000),true);
  mode='eyes-closed';assert.equal((await inspectCapture(video)).ready,true,'Natural eye shape must not block a head-turn check');
- const beforeStill=descriptions;const still=await captureSequence(video,[],clock,s=>prompt=s,()=>true);assert.equal(descriptions-beforeStill,2,'Stationary capture should run recognition twice');assert.equal(still.frames.length,2);validatePair(still.samples);
+ const beforeStill=descriptions;const still=await captureSequence(video,[],clock,s=>prompt=s,()=>true);assert.equal(descriptions-beforeStill,2,'Stationary capture should run recognition twice');assert.equal(still.frames.length,2);validatePair(still.samples);validateStationary(still.frames,still.samples,20000);
+ const realTimeout=globalThis.setTimeout;const waits:number[]=[];globalThis.setTimeout=((callback:()=>void,delay?:number)=>{waits.push(delay||0);return realTimeout(callback,0)}) as typeof setTimeout;try{await captureSequence(video,[],clock,()=>{},()=>true);assert(!waits.includes(350),'Do not add a full 350ms wait after recognition has already taken time');}finally{globalThis.setTimeout=realTimeout;}
  mode='gpu-error';const beforeFailure=detections;await assert.rejects(()=>captureMotion(video,['eyes','right'],clock,s=>prompt=s,()=>true),/Tensor backend failed/);assert.equal(detections-beforeFailure,1,'Inference errors must fail immediately');
  mode='normal';await assert.rejects(()=>captureMotion(video,['eyes','right'],clock,()=>{},()=>false),/cancelled/);
  console.log(`PASS: ${detections} landmark polls use only ${descriptions} recognition calls; same Dlib alignment and reusable canvas`);

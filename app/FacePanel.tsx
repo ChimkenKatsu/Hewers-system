@@ -44,7 +44,7 @@ export default function FacePanel({data,demo,access,workspaceId,onRecorded,onOpe
   const challenge=b.challenge,motion=b.motion,captureStarted=Date.now();
   if(cancelled.current)throw Error('Camera check cancelled');
   const {frames,samples}=await captureSequence(video.current!,motion.actions,captureStarted,setStatus,()=>!cancelled.current&&mounted.current&&!!stream.current?.active);validatePair(samples);
-  captureMs=Date.now()-captureStarted;serverStarted=Date.now();setSending(true);setStatus('Saving the face match. Please wait for confirmation…');r=await fetch('/api/face',{method:'POST',headers,body:JSON.stringify({action:'submit',attemptId,workerId,purpose,challenge,motion:{token:motion.token,frames},model:FACE_MODEL,samples,consent})});b=await readApiJson<any>(r);if(!r.ok)throw Object.assign(Error(b.error),{code:b.code});outcome='matched';reason='none';
+  captureMs=Date.now()-captureStarted;serverStarted=Date.now();setSending(true);setStatus('Checking the match and saving attendance…');r=await fetch('/api/face',{method:'POST',headers,body:JSON.stringify({action:'submit',attemptId,workerId,purpose,challenge,motion:{token:motion.token,frames},model:FACE_MODEL,samples,consent})});b=await readApiJson<any>(r);if(!r.ok)throw Object.assign(Error(b.error),{code:b.code});outcome='matched';reason='none';
   const person=data.workers.find(w=>w.id===workerId);
   const record=b.state?.attendance?.filter((x:any)=>x.workerId===workerId).at(-1);
   const recordedTime=record&&(purpose==='out'?record.timeOut:record.timeIn);

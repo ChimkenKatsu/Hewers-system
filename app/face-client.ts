@@ -9,7 +9,15 @@ export function loadFaceEngine():Promise<any>{
  ready=(async()=>{
   if(!(window as any).faceapi)await new Promise<void>((resolve,reject)=>{const script=document.createElement('script');script.src='/vendor/face-api-1.7.15.js';script.onload=()=>resolve();script.onerror=()=>{script.remove();reject(Error('Face engine could not load. Check your connection and try again.'))};document.head.appendChild(script)});
   const api=(window as any).faceapi;try{if(!await api.tf.setBackend('webgl'))throw Error('WebGL unavailable')}catch{if(!await api.tf.setBackend('cpu'))throw Error('This device cannot start the face engine. Try another browser.')}await api.tf.ready();
-  await Promise.all([api.nets.ssdMobilenetv1.loadFromUri('/face-models'),api.nets.faceLandmark68Net.loadFromUri('/face-models'),api.nets.faceRecognitionNet.loadFromUri('/face-models')]);return api;
+  await Promise.all([api.nets.ssdMobilenetv1.loadFromUri('/face-models'),api.nets.faceLandmark68Net.loadFromUri('/face-models'),api.nets.faceRecognitionNet.loadFromUri('/face-models')]);
+  // Compile the three inference paths before the operator's first capture.
+  // This blank local canvas contains no worker image and creates no enrollment.
+  const warmup=document.createElement('canvas');warmup.width=640;warmup.height=480;
+  await api.detectAllFaces(warmup,new api.SsdMobilenetv1Options({minConfidence:0.9,maxResults:3}));
+  warmup.width=150;warmup.height=150;
+  await api.nets.faceLandmark68Net.detectLandmarks(warmup);
+  await api.computeFaceDescriptor(warmup);
+  return api;
  })().catch(e=>{ready=null;throw e});return ready;
 }
 const captureCanvases=new WeakMap<HTMLVideoElement,HTMLCanvasElement>();
@@ -80,10 +88,11 @@ async function captureStationary(video:HTMLVideoElement,started:number,onPrompt:
  while(frames.length<2){
   if(!alive())throw Error('Camera check cancelled');
   if(Date.now()>deadline)throw Error('Could not capture a clear face. '+(hint||'Use even lighting, face the camera and hold still.'));
-  onPrompt(frames.length?'Hold still · taking the second capture':'Look at the camera · capturing your face');
+  if(frames.length){const remaining=350-(Date.now()-started-frames[0].elapsed);if(remaining>0)await new Promise(resolve=>setTimeout(resolve,remaining));if(!alive())throw Error('Camera check cancelled');}
+  onPrompt(frames.length?'Verifying face · checking the second capture':'Verifying face · checking the first capture');
   try{await exclusive(video,async()=>{const f=await observe(video);const elapsed=Date.now()-started,descriptor=await f.describe();if(!alive())throw Error('Camera check cancelled');if(frames.length)validatePair([frames[0].descriptor,descriptor]);frames.push({elapsed,eyeRatio:f.eyeRatio,yaw:f.yaw,descriptor})});}
   catch(e){if(!alive())throw e;const reason=scanReason(e);if(!['no-face','multiple-faces','too-small','out-of-frame','not-centered','lighting','blur','camera','inconsistent'].includes(reason))throw e;hint=e instanceof Error?e.message:'Face the camera';if(reason==='inconsistent')frames.length=0;onPrompt(hint);}
-  if(frames.length<2)await new Promise(resolve=>setTimeout(resolve,frames.length?350:180));
+  if(!frames.length)await new Promise(resolve=>setTimeout(resolve,180));
  }
  return frames;
 }
