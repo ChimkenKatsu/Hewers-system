@@ -7,7 +7,7 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  if(reviewActions.includes(action))return applyReviewOperation(original,action,p,actor,now,actorId);
  const s:State=structuredClone(original),id=uid();
  const text=(v:any,label:string,max=240)=>{if(typeof v!=='string'||!v.trim()||v.length>max)throw Error('Enter a valid '+label);return v.trim()};
- const num=(v:any,label:string,allowZero=false)=>{const n=Number(v);if(!Number.isFinite(n)||(allowZero?n<0:n<=0)||n>1e9)throw Error('Enter a valid '+label);return Math.round(n*1000)/1000};
+ const num=(v:any,label:string,allowZero=false)=>{const n=Number(v);if(!Number.isFinite(n)||(allowZero?n<0:n<=0)||n>1e9)throw Error('Enter a valid '+label);const rounded=Math.round(n*1000)/1000;if(!allowZero&&rounded===0)throw Error('Enter a valid '+label+' of at least 0.001');return rounded};
  const site=()=>{if(!s.sites.some(x=>x.id===p.siteId))throw Error('Select a valid site');return p.siteId};
  let message='';
  if(action==='site'){const name=text(p.name,'site name');s.sites.push({id,name,location:text(p.location,'location'),shiftEnd:REGULAR_END});message='Created site: '+name;}

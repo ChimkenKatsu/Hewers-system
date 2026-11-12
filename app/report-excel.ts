@@ -16,7 +16,7 @@ export function createReportWorkbook(kind:ReportKind,rows:(string|number)[][],si
   sheet.getRow(5).eachCell(cell=>{cell.font={bold:true,color:{argb:'FF082C45'},size:11};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF5B800'}};cell.alignment={vertical:'middle',wrapText:true}});
   for(const [n,source] of rows.slice(1).entries()){
    const row=sheet.addRow(indexes.map(i=>source[i]??''));
-   row.eachCell({includeEmpty:true},cell=>{cell.font={name:'Calibri',size:11,color:{argb:'FF17364D'}};cell.alignment={vertical:'top',wrapText:true};cell.border={bottom:{style:'hair',color:{argb:'FFDCE5EE'}}};if(n%2===1)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F5FA'}};if(typeof cell.value==='number')cell.numFmt='0.##'});
+   row.eachCell({includeEmpty:true},cell=>{cell.font={name:'Calibri',size:11,color:{argb:'FF17364D'}};cell.alignment={vertical:'top',wrapText:true};cell.border={bottom:{style:'hair',color:{argb:'FFDCE5EE'}}};if(n%2===1)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F5FA'}};if(typeof cell.value==='number')cell.numFmt='0.###'});
    const maxLines=Math.max(...indexes.map((i,c)=>Math.ceil(String(source[i]??'').length/Math.max(10,(sheet.getColumn(c+1).width||25)-3))));row.height=Math.min(180,Math.max(30,maxLines*16));
   }
   sheet.autoFilter={from:{row:5,column:1},to:{row:Math.max(5,rows.length+4),column:indexes.length}};

@@ -32,3 +32,17 @@ assert.equal(accepted.workers.length,pending.workers.length+1);assert.equal(acce
 assert.throws(()=>applyOperation(accepted,'worker-review',{requestId:request.id,decision:'declined'},'admin2'),/already been reviewed/);
 const declined=applyOperation(pending,'worker-review',{requestId:request.id,decision:'declined',reason:'Missing worker details'},'admin2');assert.equal(declined.workers.length,pending.workers.length);
 console.log('PASS: pending-worker isolation, duplicate requests, accept/decline, reviewer attribution, double-review denial.');
+
+// Validate after rounding as well as before it: no successful zero-effect movements.
+for(const type of ['Delivery','Issue','Return','Damage','Loss']){
+ for(const quantity of [0.0001,0.00049,Number.MIN_VALUE]){
+  assert.throws(()=>applyOperation(s,'movement',{materialId,type,quantity,note:'Too small'},'QA'),/at least 0.001/);
+  assert.equal(JSON.stringify(s),before,'Rejected movement leaves stock and audit history unchanged');
+ }
+ const minimum=applyOperation(s,'movement',{materialId,type,quantity:0.001,note:'Minimum valid amount'},'QA');
+ assert.equal(minimum.movements.at(-1)!.quantity,0.001);
+ assert.equal(minimum.materials[0].balance,['Issue','Damage','Loss'].includes(type)?82.999:83.001);
+}
+const zeroOpening=applyOperation(s,'material',{siteId,name:'Empty stock',unit:'m³',balance:0,minimum:0},'QA');
+assert.equal(zeroOpening.materials.at(-1)!.balance,0,'Zero opening balances remain supported');
+console.log('PASS: all movement types reject quantities rounded to zero without mutations; 0.001 movements and zero opening balances work.');
