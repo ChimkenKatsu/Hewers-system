@@ -12,8 +12,13 @@ export function attendanceShift(record:Attendance){
  const minutes=Math.max(0,Math.ceil((Date.parse(record.timeIn)-shiftTime(day(record.timeIn),REGULAR_START))/60000));
  return {label:minutes?'Late · '+minutes+' min':'On time',lateMinutes:minutes};
 }
-export function validateOvertimeCorrection(state:State,record:Attendance,timeIn:string){
- if(record.shiftKind!=='overtime')return;
+export function validateAttendanceCorrection(state:State,record:Attendance,timeIn:string){
+ if(record.shiftKind!=='overtime'){
+  const date=day(timeIn);
+  if(Date.parse(timeIn)>=shiftTime(date,REGULAR_END))throw Error('Corrected regular attendance must start before 5:00 PM. Evening work requires a separate approved overtime record.');
+  if(state.attendance.some(a=>a.id!==record.id&&a.workerId===record.workerId&&a.shiftKind!=='overtime'&&day(a.timeIn)===date))throw Error('Regular attendance is already recorded on the corrected date. Use the existing record instead.');
+  return new Date(shiftTime(date,REGULAR_END)).toISOString();
+ }
  const approval=state.overtimeApprovals?.find(a=>a.id===record.overtimeApprovalId);
  const start=Date.parse(timeIn);
  if(!approval||approval.workerId!==record.workerId||approval.siteId!==record.siteId||approval.usedAttendanceId!==record.id||approval.revokedAt||day(timeIn)!==approval.date||start<shiftTime(approval.date,REGULAR_END)||start<Date.parse(approval.approvedAt)||start>=shiftTime(approval.date,approval.endTime))throw Error('Corrected overtime must start after its approval, at or after 5:00 PM, and before the approved end on the approved date.');
