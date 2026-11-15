@@ -54,7 +54,7 @@ final class OfflineAttendance {
  void attach(LinearLayout view){panel=view;}
  private void message(String text){activity.runOnUiThread(()->Toast.makeText(activity,text,Toast.LENGTH_LONG).show());}
  private TextView text(String value,int size){TextView v=new TextView(activity);v.setText(value);v.setTextSize(size);v.setTextColor(Color.rgb(0,36,72));v.setPadding(12,10,12,10);panel.addView(v);return v;}
- private Button button(String label,Runnable action){Button b=new Button(activity);b.setText(label);b.setOnClickListener(v->action.run());panel.addView(b);return b;}
+ private Button button(String label,Runnable action){Button b=new Button(activity);b.setText(label);b.setAllCaps(false);b.setContentDescription(label);b.setOnClickListener(v->action.run());panel.addView(b);return b;}
  void open(){activity.runOnUiThread(()->{
   panel.removeAllViews();panel.setVisibility(View.VISIBLE);if(container!=null)container.setVisibility(View.VISIBLE);text("HEWERS · Offline attendance",24);text("Manual entries · Pending administrator approval. Device time is recorded in Philippine Time. This log does not verify faces.",15);
   try{
