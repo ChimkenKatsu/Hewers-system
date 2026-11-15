@@ -20,7 +20,9 @@ public class AppLaunchTest {
   assertNotNull(intent);intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);context.startActivity(intent);
   assertTrue("Hewers sign-in entry did not load",device.wait(Until.hasObject(By.textContains("Sign in with username")),90000));
   device.findObject(By.textContains("Sign in with username")).click();
-  assertTrue("Hewers login page did not load",device.wait(Until.hasObject(By.text("Sign in to Hewers")),90000));
+  boolean login=device.wait(Until.hasObject(By.text("Sign in to Hewers")),90000);
+  if(!login){java.io.ByteArrayOutputStream tree=new java.io.ByteArrayOutputStream();device.dumpWindowHierarchy(tree);System.out.println("LOGIN_FAILURE_UI "+tree.toString("UTF-8"));}
+  assertTrue("Hewers login page did not load",login);
   assertTrue(device.wait(Until.hasObject(By.text("Username")),10000));
   device.takeScreenshot(new File(context.getExternalFilesDir(null),"android-login-portrait.png"));
   device.setOrientationLeft();assertTrue("Login disappeared after rotation",device.wait(Until.hasObject(By.text("Sign in to Hewers")),30000));
