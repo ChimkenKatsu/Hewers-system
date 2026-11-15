@@ -12,14 +12,14 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  const num=(v:any,label:string,allowZero=false)=>{const n=Number(v);if(!Number.isFinite(n)||(allowZero?n<0:n<=0)||n>1e9)throw Error('Enter a valid '+label);const rounded=Math.round(n*1000)/1000;if(!allowZero&&rounded===0)throw Error('Enter a valid '+label+' of at least 0.001');return rounded};
  const site=()=>{if(!s.sites.some(x=>x.id===p.siteId))throw Error('Select a valid site');return p.siteId};
  let message='';
- if(action==='site'){const name=text(p.name,'site name');s.sites.push({id,name,location:text(p.location,'location'),shiftEnd:REGULAR_END});message='Created site: '+name;}
+ if(action==='site'){const name=text(p.name,'site name');s.sites.push({id,name,location:text(p.location,'location'),shiftEnd:REGULAR_END,reminderUsesSchedule:true});message='Created site: '+name;}
  else if(action==='site-schedule'){
-  const selected=s.sites.find(x=>x.id===p.siteId);if(!selected)throw Error('Site not found');const previousEnd=selected.schedule?.end||REGULAR_END;selected.schedule=validateSchedule(p.schedule);if(!selected.shiftEnd||selected.shiftEnd===previousEnd)selected.shiftEnd=selected.schedule.end;message='Updated work schedule for '+selected.name;
+  const selected=s.sites.find(x=>x.id===p.siteId);if(!selected)throw Error('Site not found');const previousEnd=selected.schedule?.end||REGULAR_END;selected.schedule=validateSchedule(p.schedule);if(selected.reminderUsesSchedule||(!selected.shiftEnd&&selected.reminderUsesSchedule!==false)||(selected.reminderUsesSchedule===undefined&&selected.shiftEnd===previousEnd)){selected.shiftEnd=selected.schedule.end;selected.reminderUsesSchedule=true;}message='Updated work schedule for '+selected.name;
  }
  else if(action==='site-shift-settings'){
   const selected=s.sites.find(x=>x.id===p.siteId);if(!selected)throw Error('Site not found');
   if(typeof p.shiftEnd!=='string'||(p.shiftEnd!==''&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.shiftEnd)))throw Error('Choose a valid end-of-shift time');
-  selected.remindersDisabled=!p.shiftEnd;if(p.shiftEnd)selected.shiftEnd=p.shiftEnd;else delete selected.shiftEnd;
+  selected.reminderUsesSchedule=p.useSchedule===true;selected.remindersDisabled=!p.shiftEnd;if(p.shiftEnd)selected.shiftEnd=p.shiftEnd;else delete selected.shiftEnd;
   message=(p.shiftEnd?'Set missing time-out reminders to '+p.shiftEnd+' PHT at ':'Disabled missing time-out reminders at ')+selected.name;
  }
  else if(action==='worker'){const name=text(p.name,'worker name');s.workers.push({id,name,trade:text(p.trade,'trade'),siteId:site()});message='Registered worker: '+name;}

@@ -1,3 +1,4 @@
+import {missingTimeouts} from '../app/attendance-reminders';
 import assert from 'node:assert/strict';
 import {emptyState} from '../app/model';
 import {applyOperation} from '../app/operations';
@@ -29,3 +30,9 @@ assert.throws(()=>validateSchedule({...schedule,breakEnd:'16:00'}),/within/);
 assert.throws(()=>validateSchedule({...schedule,breakStart:'',breakEnd:'13:00'}),/within/);
 const stranded=structuredClone(s);stranded.attendance=stranded.attendance.filter(a=>a.shiftKind==='overtime');stranded.attendance[0].timeOut='2026-11-15T08:00:00Z';assert.throws(()=>checkShiftEntry(stranded,'w','2026-11-15T08:01:00Z'),/already recorded/);
 console.log('PASS: 6–3 shifts, unpaid break overlap, late/early undertime, pending hours, immutable schedule snapshots, 3 PM overtime, and invalid schedule rejection');
+
+const ongoing=structuredClone(changed);ongoing.attendance[0].timeOut=null;
+assert.equal(missingTimeouts(ongoing,{role:'administrator',siteIds:[]},Date.parse('2026-11-15T07:01:00Z')).length,1,'An already-open early shift keeps its 3 PM reminder after the site changes to 5 PM');
+const custom=applyOperation(ongoing,'site-shift-settings',{siteId:'s',shiftEnd:'18:00'},'Admin');
+assert.equal(missingTimeouts(custom,{role:'administrator',siteIds:[]},Date.parse('2026-11-15T07:01:00Z')).length,0,'Explicit reminder overrides remain respected');
+console.log('PASS: automatic reminders follow saved shift snapshots; explicit custom reminder cutoffs remain supported');

@@ -1,5 +1,5 @@
 export type ShiftSchedule={start:string;end:string;breakStart?:string;breakEnd?:string};
-export type Site={id:string;name:string;location:string;shiftEnd?:string;remindersDisabled?:boolean;schedule?:ShiftSchedule};
+export type Site={id:string;name:string;location:string;shiftEnd?:string;remindersDisabled?:boolean;reminderUsesSchedule?:boolean;schedule?:ShiftSchedule};
 export type Worker={id:string;name:string;trade:string;siteId:string;archivedAt?:string;archivedBy?:string};
 export type Attendance={id:string;workerId:string;siteId:string;timeIn:string;timeOut:string|null;method:string;timeOutMethod?:string;note:string;correctionId?:string;schedule?:ShiftSchedule;shiftKind?:'regular'|'overtime';overtimeApprovalId?:string;shiftEndAt?:string};
 export type Material={id:string;name:string;unit:string;siteId:string;balance:number;minimum:number};
