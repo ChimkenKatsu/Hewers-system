@@ -112,6 +112,7 @@ public class MainActivity extends ComponentActivity {
         else if(state==null||web.restoreState(state)==null)web.loadUrl(AppPolicy.HOME);
         getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true){@Override public void handleOnBackPressed(){goBack();}});
     }
+    OfflineAttendance offlineLog(){return offline;}
     void reloadWorkspace(){web.reload();offline.sync();}
     private int dp(int value){return (int)(value*getResources().getDisplayMetrics().density);}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("openNotifications",false)&&web!=null)web.loadUrl(AppPolicy.HOME+"?notifications=1");}
