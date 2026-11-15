@@ -19,7 +19,9 @@ public class AppLaunchTest {
   Intent intent=context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
   assertNotNull(intent);intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);context.startActivity(intent);
   assertTrue("Hewers sign-in entry did not load",device.wait(Until.hasObject(By.textContains("Sign in with username")),90000));
-  device.findObject(By.textContains("Sign in with username")).click();
+  device.waitForIdle();
+  assertTrue("Clickable sign-in link missing",device.wait(Until.hasObject(By.desc("Sign in with username").clickable(true)),10000));
+  device.findObject(By.desc("Sign in with username").clickable(true)).click();
   boolean login=device.wait(Until.hasObject(By.text("Sign in to Hewers")),90000);
   if(!login){java.io.ByteArrayOutputStream tree=new java.io.ByteArrayOutputStream();device.dumpWindowHierarchy(tree);System.out.println("LOGIN_FAILURE_UI "+tree.toString("UTF-8"));}
   assertTrue("Hewers login page did not load",login);
