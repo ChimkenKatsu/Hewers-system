@@ -37,7 +37,7 @@ jobs:
           script: |
             gradle -p android --no-daemon :app:connectedDebugAndroidTest
             mkdir -p android/emulator-proof
-            adb pull /sdcard/Android/data/com.hewers.workforce/files/ android/emulator-proof/
+            adb pull /sdcard/Android/data/com.hewers.workforce/files/ android/emulator-proof/ || true
       - name: Upload app test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

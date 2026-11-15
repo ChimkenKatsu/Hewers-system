@@ -35,11 +35,9 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
-            result=0
-            gradle -p android --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.hewers.workforce.OfflineAttendanceTest || result=$?
+            gradle -p android --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.hewers.workforce.OfflineAttendanceTest
             mkdir -p android/emulator-proof
             adb pull /sdcard/Android/data/com.hewers.workforce/files/ android/emulator-proof/ || true
-            exit "$result"
       - name: Upload app test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
