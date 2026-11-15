@@ -21,3 +21,10 @@ const access:Access={owner:'owner',userId:'other',email:'other',role:'auditor',s
 assert.throws(()=>authorize({...access,siteIds:[]},requested,'offline-attendance-request',p),/not assigned/);
 assert.throws(()=>authorize(access,requested,'offline-attendance-review',review),/cannot/);
 console.log('PASS: offline review isolation, idempotent upload, account/site scoping, independent admin approval, original device times, historical schedule, matching checkout, future clock and repeat approval rejection');
+
+assert.equal(visibleState(requested,{...access,userId:'auditor-id',role:'custodian'}).offlineAttendance!.length,0,'Inventory-only roles cannot read offline attendance');
+assert.throws(()=>applyOperation(requested,'offline-attendance-request',{...p,schedule:{start:'08:00',end:'17:00'}},'Auditor',now,'auditor-id'),/reused/);
+const archived=structuredClone(requested);archived.workers[0].archivedAt=now;
+assert.throws(()=>applyOperation(archived,'offline-attendance-review',review,'Admin',now,'admin-id'),/Restore/);
+const declined=applyOperation(requested,'offline-attendance-review',{...review,decision:'declined'},'Admin',now,'admin-id');assert.equal(declined.attendance.length,0);
+console.log('PASS: archived-worker approval denial, schedule-payload binding, decline isolation and inventory-role privacy');
