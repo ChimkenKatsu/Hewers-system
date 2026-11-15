@@ -1,3 +1,4 @@
+import * as offlineAttendance from '../app/api/offline-attendance/route';
 import * as username from '../app/api/account/username/route';
 import * as notifications from '../app/api/notifications/route';
 import * as push from '../app/api/push/route';
@@ -13,4 +14,4 @@ import * as workspace from '../app/api/workspace/route';
 import * as staff from '../app/api/staff/route';
 import * as face from '../app/api/face/route';
 import * as photos from '../app/api/photos/route';
-export default {fetch(request:Request){const routes:any={'/api/internal/attendance-reminders':reminders,'/api/push':push,'/api/notifications':notifications,'/api/scan-diagnostics':diagnostics,'/api/accounts':accounts,'/api/account/password':password,'/api/account/username':username,'/api/google':google,'/api/google/connect':googleConnect,'/api/google/callback':googleCallback,'/api/workspace':workspace,'/api/staff':staff,'/api/face':face,'/api/photos':photos};return (new URL(request.url).pathname.startsWith('/api/auth/')?auth:routes[new URL(request.url).pathname])?.[request.method]?.(request)||new Response('Not found',{status:404})}};
+export default {fetch(request:Request){const routes:any={'/api/offline-attendance':offlineAttendance,'/api/internal/attendance-reminders':reminders,'/api/push':push,'/api/notifications':notifications,'/api/scan-diagnostics':diagnostics,'/api/accounts':accounts,'/api/account/password':password,'/api/account/username':username,'/api/google':google,'/api/google/connect':googleConnect,'/api/google/callback':googleCallback,'/api/workspace':workspace,'/api/staff':staff,'/api/face':face,'/api/photos':photos};return (new URL(request.url).pathname.startsWith('/api/auth/')?auth:routes[new URL(request.url).pathname])?.[request.method]?.(request)||new Response('Not found',{status:404})}};

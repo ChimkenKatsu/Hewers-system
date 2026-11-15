@@ -1,0 +1,13 @@
+# Flexible shifts, worked hours and offline attendance
+
+Payroll is intentionally excluded.
+
+Administrators set same-day site schedules in Sites & settings. Start/end and an optional unpaid break window are required to be valid Philippine times with the break inside the shift. Examples: 06:00–15:00, break 12:00–13:00. Leaving both break fields empty means no break deduction. Existing sites retain 08:00–17:00 with no deduction until configured; historical records without a schedule snapshot keep that legacy interpretation.
+
+New regular and overtime records snapshot their schedule. Schedule edits affect future regular check-ins, not recorded calculations. Regular sessions allow one check-in per PHT date and stop at their scheduled end. A completed regular session is required for overtime, which starts after that record’s shift end and after authorization. Corrections revalidate both request and acceptance; moving regular attendance to another date requires reviewing/cancelling associated overtime first.
+
+Worked minutes = actual attendance duration minus its overlap with the unpaid break. Regular minutes = attendance overlapping the scheduled shift minus overlapping unpaid break. Undertime = expected scheduled minutes minus regular minutes, minimum zero. Early arrival/late departure never offsets missed scheduled minutes. Overtime is reported separately, with no second unpaid break deduction. Open sessions have pending, not zero, worked/undertime values. Hours are displayed/exported as hours; undertime, late arrival and early departure are minutes. No wage, tax, deduction or statutory overtime calculation is performed.
+
+Offline Android entries use device time and a seven-day cached authorized roster. They are encrypted on device and require current account/site authorization again at upload. Native cold launch has an offline button on the connection-error screen. Entries sync while the app is open/resumed and connected, with explicit pending-sync/pending-review states. A different administrator reviews actual attendance and device timestamps before accepting. Time-in then time-out approval produces the saved attendance; future timestamps and conflicting records are rejected. Wrong-account uploads stay on the phone until the original account signs in. No face templates, passwords or backend keys are embedded in the offline log.
+
+Verification: tests/flexible-shifts.test.ts, tests/offline-attendance.test.ts, tests/offline-attendance-api.mjs, existing attendance/report regressions; Android build/lint/unit workflow and Android offline emulator workflow. A physical-device airplane-mode/clock/account-change trial is still required before client rollout.

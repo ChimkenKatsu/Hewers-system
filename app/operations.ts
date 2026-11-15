@@ -1,9 +1,11 @@
-import {checkShiftEntry,shiftTime,REGULAR_END,overtimeApprovalStatus} from './shift-policy';
+import {applyOfflineOperation} from './offline-operations';
+import {checkShiftEntry,shiftTime,REGULAR_END,overtimeApprovalStatus,validateSchedule,recordSchedule} from './shift-policy';
 import {day} from './model';
 import type {State} from './model';
 import {applyReviewOperation,reviewActions} from './review-operations';
 const uid=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
 export function applyOperation(original:State,action:string,p:any,actor:string,now=new Date().toISOString(),actorId?:string):State{
+ if(action==='offline-attendance-request'||action==='offline-attendance-review')return applyOfflineOperation(original,action,p,actor,now,actorId);
  if(reviewActions.includes(action))return applyReviewOperation(original,action,p,actor,now,actorId);
  const s:State=structuredClone(original),id=uid();
  const text=(v:any,label:string,max=240)=>{if(typeof v!=='string'||!v.trim()||v.length>max)throw Error('Enter a valid '+label);return v.trim()};
@@ -11,6 +13,9 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  const site=()=>{if(!s.sites.some(x=>x.id===p.siteId))throw Error('Select a valid site');return p.siteId};
  let message='';
  if(action==='site'){const name=text(p.name,'site name');s.sites.push({id,name,location:text(p.location,'location'),shiftEnd:REGULAR_END});message='Created site: '+name;}
+ else if(action==='site-schedule'){
+  const selected=s.sites.find(x=>x.id===p.siteId);if(!selected)throw Error('Site not found');const previousEnd=selected.schedule?.end||REGULAR_END;selected.schedule=validateSchedule(p.schedule);if(!selected.shiftEnd||selected.shiftEnd===previousEnd)selected.shiftEnd=selected.schedule.end;message='Updated work schedule for '+selected.name;
+ }
  else if(action==='site-shift-settings'){
   const selected=s.sites.find(x=>x.id===p.siteId);if(!selected)throw Error('Site not found');
   if(typeof p.shiftEnd!=='string'||(p.shiftEnd!==''&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.shiftEnd)))throw Error('Choose a valid end-of-shift time');
@@ -46,7 +51,9 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
  else if(action==='overtime-approve'){
   const worker=s.workers.find(w=>w.id===p.workerId);if(!worker||worker.archivedAt)throw Error('Select an active worker');
   const date=day(now);if(p.date!==date)throw Error('Approve overtime for today in Philippine Time');
-  if(typeof p.endTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.endTime)||shiftTime(date,p.endTime)<=Math.max(Date.parse(now),shiftTime(date,REGULAR_END)))throw Error('Overtime end must be after 5:00 PM and the current time, on the same day');
+  const regular=s.attendance.find(a=>a.workerId===worker.id&&day(a.timeIn)===date&&a.shiftKind!=='overtime'&&a.timeOut);
+  const end=regular?recordSchedule(regular).end:REGULAR_END;
+  if(typeof p.endTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.endTime)||shiftTime(date,p.endTime)<=Math.max(Date.parse(now),shiftTime(date,end)))throw Error('Overtime end must be after the scheduled shift and the current time, on the same day');
   if(!s.attendance.some(a=>a.workerId===worker.id&&day(a.timeIn)===date&&a.shiftKind!=='overtime'&&a.timeOut))throw Error('Complete the regular attendance record before approving a separate overtime session');
   s.overtimeApprovals??=[];if(s.overtimeApprovals.some(a=>a.workerId===worker.id&&a.date===date&&overtimeApprovalStatus(a,Date.parse(now))==='Available'))throw Error('This worker already has an unused overtime approval');
   s.overtimeApprovals.push({id,workerId:worker.id,siteId:worker.siteId,date,endTime:p.endTime,reason:text(p.reason,'overtime reason',500),approvedBy:actor,approvedAt:now});message='Approved overtime for '+worker.name+' until '+p.endTime+' PHT';
@@ -59,7 +66,7 @@ export function applyOperation(original:State,action:string,p:any,actor:string,n
   const w=s.workers.find(x=>x.id===p.workerId);if(!w)throw Error('Select a valid worker');
   if(w.archivedAt)throw Error('This worker is archived. Restore them before recording attendance');
   const open=s.attendance.find(x=>x.workerId===w.id&&!x.timeOut);
-  if(p.type==='in'){if(open)throw Error('This worker already has an open attendance record');const entry=checkShiftEntry(s,w.id,now);if(entry.approval)entry.approval.usedAttendanceId=id;s.attendance.push({shiftKind:entry.kind,overtimeApprovalId:entry.approval?.id,shiftEndAt:new Date(shiftTime(day(now),entry.approval?.endTime||REGULAR_END)).toISOString(),id,workerId:w.id,siteId:w.siteId,timeIn:now,timeOut:null,method:'Manual',note:text(p.note,'manual attendance reason',500)});message=w.name+' checked in (manual)';}
+  if(p.type==='in'){if(open)throw Error('This worker already has an open attendance record');const entry=checkShiftEntry(s,w.id,now);if(entry.approval)entry.approval.usedAttendanceId=id;s.attendance.push({schedule:structuredClone(entry.schedule),shiftKind:entry.kind,overtimeApprovalId:entry.approval?.id,shiftEndAt:new Date(shiftTime(day(now),entry.approval?.endTime||entry.schedule.end)).toISOString(),id,workerId:w.id,siteId:w.siteId,timeIn:now,timeOut:null,method:'Manual',note:text(p.note,'manual attendance reason',500)});message=w.name+' checked in (manual)';}
   else if(p.type==='out'){if(!open)throw Error('This worker has no open attendance record');open.timeOut=now;open.timeOutMethod='Manual';message=w.name+' checked out (manual)';}
   else throw Error('Invalid attendance action');
  }

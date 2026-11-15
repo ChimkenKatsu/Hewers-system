@@ -6,12 +6,12 @@ s.attendance=[{id:'a',workerId:'w',siteId:'s',timeIn:'2026-11-10T00:00:00Z',time
 const now='2026-11-12T12:00:00Z';
 const payload={attendanceId:'a',expectedIn:s.attendance[0].timeIn,expectedOut:s.attendance[0].timeOut,proposedIn:'2026-11-10T00:10:00Z',proposedOut:'2026-11-10T12:00:00Z',reason:'Confirmed actual attendance times'};
 const request=(state= s,p=payload)=>applyOperation(state,'attendance-correction-request',p,'Auditor',now,'requester-id');
-for(const proposedIn of ['2026-11-10T09:00:00Z','2026-11-10T10:00:00Z'])assert.throws(()=>request(s,{...payload,proposedIn}),/before 5:00 PM/);
+for(const proposedIn of ['2026-11-10T09:00:00Z','2026-11-10T10:00:00Z'])assert.throws(()=>request(s,{...payload,proposedIn}),/before the scheduled shift end/);
 const legacy=structuredClone(s);delete legacy.attendance[0].shiftKind;
-assert.throws(()=>request(legacy,{...payload,proposedIn:'2026-11-10T10:00:00Z'}),/before 5:00 PM/);
+assert.throws(()=>request(legacy,{...payload,proposedIn:'2026-11-10T10:00:00Z'}),/before the scheduled shift end/);
 const pending=request();const review={requestId:pending.attendanceCorrections![0].id,decision:'accepted'};
 const oldPending=structuredClone(pending);oldPending.attendanceCorrections![0].proposedIn='2026-11-10T10:00:00Z';
-assert.throws(()=>applyOperation(oldPending,'attendance-correction-review',review,'Admin',now,'reviewer-id'),/before 5:00 PM/);
+assert.throws(()=>applyOperation(oldPending,'attendance-correction-review',review,'Admin',now,'reviewer-id'),/before the scheduled shift end/);
 assert.equal(oldPending.attendanceCorrections![0].status,'pending');
 const accepted=applyOperation(pending,'attendance-correction-review',review,'Admin',now,'reviewer-id');
 assert.equal(accepted.attendance[0].timeOut,'2026-11-10T12:00:00.000Z','Actual late departure is preserved');

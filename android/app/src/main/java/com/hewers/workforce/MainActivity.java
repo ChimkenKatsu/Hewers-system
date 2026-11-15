@@ -38,6 +38,8 @@ import java.util.Collections;
 
 public class MainActivity extends ComponentActivity {
     private static final int CAMERA = 10, PHOTO = 11, EXPORT = 12, NOTIFICATIONS = 13;
+    private OfflineAttendance offline;
+    private android.net.ConnectivityManager.NetworkCallback offlineNetwork;
     private WebView web;
     private ProgressBar progress;
     private LinearLayout errorPanel;
@@ -49,6 +51,7 @@ public class MainActivity extends ComponentActivity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         HewersMessagingService.createChannel(this);
+        offline=new OfflineAttendance(this);
         FrameLayout root = new FrameLayout(this); root.setBackgroundColor(Color.rgb(0,36,72)); setContentView(root);
         root.setOnApplyWindowInsetsListener((v, insets) -> { if(android.os.Build.VERSION.SDK_INT>=30){android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()); v.setPadding(bars.left,bars.top,bars.right,bars.bottom);}else{v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());} return insets; });
         web = new WebView(this); root.addView(web, new FrameLayout.LayoutParams(-1,-1));
@@ -57,16 +60,22 @@ public class MainActivity extends ComponentActivity {
         settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true); settings.setAllowFileAccess(false); settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setSupportMultipleWindows(true); settings.setJavaScriptCanOpenWindowsAutomatically(false);
-        settings.setUserAgentString(settings.getUserAgentString()+" HewersAndroid/0.3.0");
+        settings.setUserAgentString(settings.getUserAgentString()+" HewersAndroid/0.4.0");
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(web,false);
         progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); progress.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.rgb(244,171,2))); root.addView(progress,new FrameLayout.LayoutParams(-1,dp(4),Gravity.TOP));
         errorPanel = new LinearLayout(this); errorPanel.setOrientation(LinearLayout.VERTICAL); errorPanel.setGravity(Gravity.CENTER); errorPanel.setPadding(dp(28),dp(28),dp(28),dp(28)); errorPanel.setBackgroundColor(Color.rgb(242,244,245));
         TextView connectionMessage = new TextView(this); connectionMessage.setText("Hewers cannot connect right now.\n\nCheck your connection, then try again. Saved drafts remain on this device."); connectionMessage.setTextColor(Color.rgb(0,36,72)); connectionMessage.setTextSize(17); connectionMessage.setGravity(Gravity.CENTER); errorPanel.addView(connectionMessage);
-        Button retry = new Button(this); retry.setText("Try again"); retry.setOnClickListener(v -> {errorPanel.setVisibility(View.GONE); web.reload();}); errorPanel.addView(retry); errorPanel.setVisibility(View.GONE); root.addView(errorPanel,new FrameLayout.LayoutParams(-1,-1));
+        Button retry = new Button(this); retry.setText("Try again"); retry.setOnClickListener(v -> {errorPanel.setVisibility(View.GONE); web.reload();}); errorPanel.addView(retry); Button offlineButton=new Button(this);offlineButton.setText("Open offline attendance log");offlineButton.setOnClickListener(v->offline.open());errorPanel.addView(offlineButton);errorPanel.setVisibility(View.GONE); root.addView(errorPanel,new FrameLayout.LayoutParams(-1,-1));
+        android.widget.ScrollView offlineScroll=new android.widget.ScrollView(this);offlineScroll.setFillViewport(true);offlineScroll.setBackgroundColor(Color.rgb(242,244,245));
+        LinearLayout offlinePanel=new LinearLayout(this);offlinePanel.setOrientation(LinearLayout.VERTICAL);offlinePanel.setPadding(dp(20),dp(24),dp(20),dp(24));offlineScroll.addView(offlinePanel);root.addView(offlineScroll,new FrameLayout.LayoutParams(-1,-1));offline.attach(offlinePanel);offlineScroll.setVisibility(View.GONE);
+        offlinePanel.setVisibility(View.GONE);
+        // Parent visibility follows explicit native open/close as well as relayout.
+        offline.setContainer(offlineScroll);
+
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { String url=request.getUrl().toString(); if(!request.isForMainFrame())return !AppPolicy.isAppUrl(url); if(AppPolicy.isAppUrl(url))return false; openExternal(url);return true; }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { mainFrameFailed=false; progress.setVisibility(View.VISIBLE); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { mainFrameFailed=false; progress.setVisibility(View.VISIBLE);if(url.startsWith(AppPolicy.ORIGIN+"/login"))offline.clearRoster(); }
             @Override public void onPageFinished(WebView view,String url) { progress.setVisibility(View.GONE); CookieManager.getInstance().flush(); if(!mainFrameFailed)errorPanel.setVisibility(View.GONE); }
             @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if(request.isForMainFrame()){mainFrameFailed=true;errorPanel.setVisibility(View.VISIBLE);} }
             @Override public void onReceivedSslError(WebView view,SslErrorHandler handler,SslError error) { handler.cancel();mainFrameFailed=true;errorPanel.setVisibility(View.VISIBLE); }
@@ -79,6 +88,12 @@ public class MainActivity extends ComponentActivity {
             @Override public boolean onCreateWindow(WebView view,boolean dialog,boolean userGesture,android.os.Message resultMsg) { if(!userGesture)return false;WebView popup=new WebView(MainActivity.this);popup.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){openExternal(r.getUrl().toString());v.destroy();return true;}});((WebView.WebViewTransport)resultMsg.obj).setWebView(popup);resultMsg.sendToTarget();return true; }
         });
         if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))WebViewCompat.addWebMessageListener(web,"HewersDownloads",Collections.singleton(AppPolicy.ORIGIN),(view,message,source,isMainFrame,reply)->{if(!isMainFrame||!AppPolicy.isAppUrl(source.toString())||!AppPolicy.isAppUrl(web.getUrl()))return;try{JSONObject value=new JSONObject(message.getData());String text=value.getString("text"),name=AppPolicy.downloadName(value.getString("name"));if(text.getBytes(StandardCharsets.UTF_8).length>2*1024*1024){toast("This export is too large. Download it in your browser.");return;}if(pendingExport!=null){toast("Finish saving the current file first.");return;}pendingExport=text.getBytes(StandardCharsets.UTF_8);Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(name.endsWith(".csv")?"text/csv":"text/plain");intent.putExtra(Intent.EXTRA_TITLE,name);startActivityForResult(intent,EXPORT);}catch(Exception e){pendingExport=null;toast("The file could not be prepared. Try again.");}});
+        if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))WebViewCompat.addWebMessageListener(web,"HewersOffline",Collections.singleton(AppPolicy.ORIGIN),(view,message,source,isMainFrame,reply)->{
+            if(!isMainFrame||!AppPolicy.isAppUrl(source.toString())||!AppPolicy.isAppUrl(web.getUrl()))return;
+            try{JSONObject value=new JSONObject(message.getData());if("roster".equals(value.optString("action"))){offline.cache(value);offline.sync();}else if("open".equals(value.optString("action")))offline.open();}catch(Exception ignored){toast("Offline log could not be opened.");}
+        });
+        android.net.ConnectivityManager networks=(android.net.ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
+        offlineNetwork=new android.net.ConnectivityManager.NetworkCallback(){@Override public void onAvailable(android.net.Network network){offline.sync();}};networks.registerDefaultNetworkCallback(offlineNetwork);
         web.setDownloadListener((url,agent,disposition,mime,length)->toast("Use the export button. If unavailable, update Android System WebView or open Hewers in your browser."));
         if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))WebViewCompat.addWebMessageListener(web,"HewersPush",Collections.singleton(AppPolicy.ORIGIN),(view,message,source,isMainFrame,reply)->{
             if(!isMainFrame||!AppPolicy.isAppUrl(source.toString())||!AppPolicy.isAppUrl(web.getUrl())||!"register".equals(message.getData()))return;
@@ -97,15 +112,16 @@ public class MainActivity extends ComponentActivity {
         else if(state==null||web.restoreState(state)==null)web.loadUrl(AppPolicy.HOME);
         getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true){@Override public void handleOnBackPressed(){goBack();}});
     }
+    void reloadWorkspace(){web.reload();offline.sync();}
     private int dp(int value){return (int)(value*getResources().getDisplayMetrics().density);}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("openNotifications",false)&&web!=null)web.loadUrl(AppPolicy.HOME+"?notifications=1");}
     private void toast(String text){Toast.makeText(this,text,Toast.LENGTH_LONG).show();}
     private void openExternal(String raw){if(!AppPolicy.isExternalHttps(raw))return;try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(raw)));}catch(ActivityNotFoundException e){toast("Install a browser to open this link.");}}
-    private void goBack(){if(web.canGoBack())web.goBack();else moveTaskToBack(true);}
+    private void goBack(){if(offline.close())return;if(web.canGoBack())web.goBack();else moveTaskToBack(true);}
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(code==NOTIFICATIONS&&results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED&&AppPolicy.isAppUrl(web.getUrl()))web.evaluateJavascript("window.dispatchEvent(new Event('hewers-push-ready'))",null);if(code==CAMERA&&pendingCamera!=null){if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED&&AppPolicy.isAppUrl(web.getUrl()))pendingCamera.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});else pendingCamera.deny();pendingCamera=null;}}
     @Override protected void onActivityResult(int code,int result,Intent data){super.onActivityResult(code,result,data);if(code==PHOTO&&photoCallback!=null){Uri uri=result==RESULT_OK&&data!=null?data.getData():null;String type=uri!=null?getContentResolver().getType(uri):null;photoCallback.onReceiveValue(uri!=null&&"content".equals(uri.getScheme())&&type!=null&&(type.equals("image/jpeg")||type.equals("image/png")||type.equals("image/webp"))?new Uri[]{uri}:null);photoCallback=null;}if(code==EXPORT){byte[] bytes=pendingExport;pendingExport=null;if(result==RESULT_OK&&data!=null&&data.getData()!=null&&bytes!=null){try(OutputStream out=getContentResolver().openOutputStream(data.getData())){if(out==null)throw new java.io.IOException();out.write(bytes);toast("File saved.");}catch(Exception e){toast("The file could not be saved. Try exporting again.");}}}}
     @Override protected void onSaveInstanceState(Bundle out){web.saveState(out);super.onSaveInstanceState(out);}
     @Override protected void onPause(){web.onPause();CookieManager.getInstance().flush();super.onPause();}
-    @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}
-    @Override protected void onDestroy(){if(photoCallback!=null)photoCallback.onReceiveValue(null);if(pendingCamera!=null)pendingCamera.deny();if(web!=null){web.stopLoading();web.destroy();}pendingExport=null;super.onDestroy();}
+    @Override protected void onResume(){offline.sync();super.onResume();if(web!=null)web.onResume();}
+    @Override protected void onDestroy(){if(offlineNetwork!=null)((android.net.ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).unregisterNetworkCallback(offlineNetwork);if(photoCallback!=null)photoCallback.onReceiveValue(null);if(pendingCamera!=null)pendingCamera.deny();if(web!=null){web.stopLoading();web.destroy();}pendingExport=null;super.onDestroy();}
 }

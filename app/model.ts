@@ -1,6 +1,7 @@
-export type Site={id:string;name:string;location:string;shiftEnd?:string;remindersDisabled?:boolean};
+export type ShiftSchedule={start:string;end:string;breakStart?:string;breakEnd?:string};
+export type Site={id:string;name:string;location:string;shiftEnd?:string;remindersDisabled?:boolean;schedule?:ShiftSchedule};
 export type Worker={id:string;name:string;trade:string;siteId:string;archivedAt?:string;archivedBy?:string};
-export type Attendance={id:string;workerId:string;siteId:string;timeIn:string;timeOut:string|null;method:string;timeOutMethod?:string;note:string;correctionId?:string;shiftKind?:'regular'|'overtime';overtimeApprovalId?:string;shiftEndAt?:string};
+export type Attendance={id:string;workerId:string;siteId:string;timeIn:string;timeOut:string|null;method:string;timeOutMethod?:string;note:string;correctionId?:string;schedule?:ShiftSchedule;shiftKind?:'regular'|'overtime';overtimeApprovalId?:string;shiftEndAt?:string};
 export type Material={id:string;name:string;unit:string;siteId:string;balance:number;minimum:number};
 export type Movement={id:string;materialId:string;siteId:string;type:string;quantity:number;note:string;created:string;actor:string;adjustmentDelta?:number;reconciliationId?:string};
 export type Evidence={id:string;siteId:string;caption:string;category:string;url:string;created:string;actor:string;transactionId:string};
@@ -12,7 +13,8 @@ export type AttendanceCorrection=ReviewRecord&{attendanceId:string;workerId:stri
 export type StockReconciliation=ReviewRecord&{materialId:string;systemBalance:number;countedBalance:number;movementId?:string};
 export type OvertimeApproval={id:string;workerId:string;siteId:string;date:string;endTime:string;reason:string;approvedBy:string;approvedAt:string;usedAttendanceId?:string;revokedAt?:string};
 export type MovementReceipt={id:string;userId:string;fingerprint:string;movementId:string};
-export type State={movementReceipts?:MovementReceipt[];overtimeApprovals?:OvertimeApproval[];attendanceCorrections?:AttendanceCorrection[];stockReconciliations?:StockReconciliation[];workerRequests?:WorkerRequest[];sites:Site[];workers:Worker[];attendance:Attendance[];materials:Material[];movements:Movement[];photos:Evidence[];audit:Audit[]};
+export type OfflineAttendanceEvent=ReviewRecord&{workerId:string;type:'in'|'out';occurredAt:string;schedule:ShiftSchedule;attendanceId?:string};
+export type State={offlineAttendance?:OfflineAttendanceEvent[];movementReceipts?:MovementReceipt[];overtimeApprovals?:OvertimeApproval[];attendanceCorrections?:AttendanceCorrection[];stockReconciliations?:StockReconciliation[];workerRequests?:WorkerRequest[];sites:Site[];workers:Worker[];attendance:Attendance[];materials:Material[];movements:Movement[];photos:Evidence[];audit:Audit[]};
 export const emptyState=():State=>({sites:[],workers:[],attendance:[],materials:[],movements:[],photos:[],audit:[]});
 export const day=(value:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
 export function demoState():State{

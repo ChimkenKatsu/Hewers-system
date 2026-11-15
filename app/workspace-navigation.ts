@@ -1,5 +1,5 @@
 const pages=['Overview','Attendance','Exceptions','Materials','Site evidence','Reports','Staff & permissions','Notifications','Settings'];
-const tabs:Record<string,string[]>={Attendance:['Attendance log','Worker directory','Face recognition','Correction requests','Scan diagnostics','Overtime approvals'],Materials:['Stock overview','Movement history','Physical counts']};
+const tabs:Record<string,string[]>={Attendance:['Attendance log','Worker directory','Face recognition','Correction requests','Scan diagnostics','Overtime approvals','Offline attendance'],Materials:['Stock overview','Movement history','Physical counts']};
 export const defaultWorkspaceTab=(page:string)=>tabs[page]?.[0]||'Stock overview';
 export function readWorkspaceRoute(hash:string,search=''){
  const [rawPage,query='']=hash.replace(/^#/,'').split('?');let page='';

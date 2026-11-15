@@ -16,7 +16,7 @@ For local development, open this directory in Android Studio with the Android 36
 - External HTTPS links, including Google connection setup, open in the phone's browser. Browser and app login sessions are separate.
 - Cleartext HTTP and mixed content are blocked. Certificate errors are cancelled. Only `https://hewers-system.vercel.app` is kept inside the main WebView.
 - Cookies and IndexedDB drafts stay in the app's private storage. Android backup is disabled. No passwords, face templates, or server keys are embedded in the APK.
-- The service needs an internet connection to load. Existing drafts remain local; the first offline app launch is not supported.
+- The hosted interface needs internet. Version 0.4.0 adds a separate native offline attendance log, available from the connection-error screen or Attendance → Offline attendance. Sign in online first to cache assigned workers. That list expires after 7 days. No face templates or passwords are cached.
 - Version 0.2.0 includes Firebase Messaging. Android 13+ asks for notification permission after signing in. If declined, enable Worker approvals in Android's app notification settings. Google Play services are required. Tapping an alert opens Notifications; decisions still require signing in and reviewing the current request.
 
 ## Push rollout (not yet enabled in production)
@@ -42,3 +42,12 @@ Local verification: `tests/push-api.mjs` uses disposable D1 and mock Firebase wi
 ## Before client distribution
 
 Install on a real Android phone and verify sign-in, first-password change, camera permission denial/retry, a consenting worker's enrollment/match, photo draft restore/upload, notifications, CSV export, app background/resume, and the Android Back button. CI compilation and policy tests do not establish real-camera accuracy. Configure stable release signing and a Play Console listing separately when ready.
+
+
+## Version 0.4.0: offline attendance
+
+The native manual log encrypts its assigned-worker list and attendance queue with AES-GCM using a device Android Keystore key. The app disables backups. Time-in/out events retain UUIDs, original device timestamps, operator/workspace identity, reasons, and the cached site shift/break schedule. Entries remain separate from authoritative attendance until a different administrator approves them. Device-clock errors, overlaps, archived workers, changed site access, expired sessions and wrong-account sync are not silently accepted. After an account/session expires, sign back into the original recording account to sync.
+
+The queue persists through process closure and offline launch. It automatically retries when the app resumes or the connection returns while the process is alive. There is also a Sync now button. It is not a background WorkManager service: reopen the app after signal returns if Android has stopped it. A server acknowledgement marks an entry as synced; keep it in the local timeline until the review decision arrives. Retries reuse the same ID and cannot create duplicate requests. Approve a worker’s time-in before the matching time-out. Native offline events are explicitly manual, never described as face-verified.
+
+Never uninstall or clear app storage while offline entries await sync. Downloading a new native APK is required for the offline log; the older APK cannot gain this feature through a website refresh. Test APK signing compatibility must be checked on the actual installed build before updating it.
