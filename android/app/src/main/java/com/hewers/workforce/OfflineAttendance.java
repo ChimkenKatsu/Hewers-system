@@ -75,7 +75,7 @@ final class OfflineAttendance {
      button("Record time out",()->confirm(workers,worker.getSelectedItemPosition(),"out",reason.getText().toString().trim()));
     }
    }
-   for(int i=0;i<queue.length();i++){JSONObject event=queue.getJSONObject(i);text(event.optString("workerName")+" · Time "+event.optString("type")+" · "+format(event.optString("occurredAt"))+"\n"+event.optString("syncError",event.optBoolean("synced")?"Synced · pending administrator approval":"Pending sync"),14);}
+   for(int i=0;i<queue.length();i++){JSONObject event=queue.getJSONObject(i);if(!event.optString("userId").equals(roster.optString("userId"))||!event.optString("owner").equals(roster.optString("owner")))continue;text(event.optString("workerName")+" · Time "+event.optString("type")+" · "+format(event.optString("occurredAt"))+"\n"+event.optString("syncError",event.optBoolean("synced")?"Synced · pending administrator approval":"Pending sync"),14);}
   }catch(Exception e){text("Offline storage could not be opened. Do not clear app data or uninstall while entries are pending. Reconnect and contact your administrator.",16);}
   button("Back to website",()->{panel.setVisibility(View.GONE);if(container!=null)container.setVisibility(View.GONE);activity.reloadWorkspace();});
  });}
@@ -89,7 +89,7 @@ final class OfflineAttendance {
   boolean assigned=false;JSONArray authorized=current.getJSONArray("workers");for(int i=0;i<authorized.length();i++)if(authorized.getJSONObject(i).getString("id").equals(worker.getString("id")))assigned=true;if(!assigned)throw new IOException("This worker is no longer on the cached authorized list");
   JSONArray queue=new JSONArray(read("queue","[]"));if(queue.length()>=1000)throw new IOException("Sync existing entries before adding more");
   boolean open=worker.optBoolean("open");
-  for(int i=0;i<queue.length();i++){JSONObject e=queue.getJSONObject(i);if(e.optString("workerId").equals(worker.getString("id"))&&e.optString("owner").equals(current.getString("owner")))open=e.getString("type").equals("in");}
+  for(int i=0;i<queue.length();i++){JSONObject e=queue.getJSONObject(i);if(e.optString("workerId").equals(worker.getString("id"))&&e.optString("owner").equals(current.getString("owner"))&&e.optString("userId").equals(current.getString("userId")))open=e.getString("type").equals("in");}
   if((type.equals("in")&&open)||(type.equals("out")&&!open))throw new IOException(type.equals("in")?"A time-in already exists. Record time-out or reconnect to review.":"Record the worker’s time-in first, or reconnect to refresh their attendance.");
   JSONObject event=new JSONObject().put("id",UUID.randomUUID().toString()).put("owner",current.getString("owner")).put("userId",current.getString("userId")).put("workerId",worker.getString("id")).put("workerName",worker.getString("name")).put("type",type).put("occurredAt",Instant.now().toString()).put("reason",reason).put("schedule",worker.getJSONObject("schedule"));
   queue.put(event);write("queue",queue.toString());message("Saved on phone · pending sync and approval");open();sync();
@@ -111,7 +111,7 @@ final class OfflineAttendance {
     }finally{connection.disconnect();}
    }
   }catch(Exception e){/* Keep all unacknowledged events for the next resume/reconnection. */}
-  finally{syncing.set(false);if(updated)activity.runOnUiThread(()->{if(panel!=null&&panel.getVisibility()==View.VISIBLE)open();});}
+  finally{syncing.set(false);if(updated)activity.runOnUiThread(()->{if(panel!=null&&panel.getVisibility()==View.VISIBLE&&!(activity.getCurrentFocus() instanceof EditText))open();});}
   },"hewers-offline-sync").start();
  }
  boolean close(){if(panel!=null&&panel.getVisibility()==View.VISIBLE){panel.setVisibility(View.GONE);if(container!=null)container.setVisibility(View.GONE);return true;}return false;}

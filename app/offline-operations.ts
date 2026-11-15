@@ -5,13 +5,13 @@ export function applyOfflineOperation(original:State,action:string,p:any,actor:s
  if(!actorId)throw Error('A verified account is required');
  const s=structuredClone(original);s.offlineAttendance??=[];
  if(action==='offline-attendance-request'){
-  if(typeof p.id!=='string'||!/^[-a-f0-9]{36}$/i.test(p.id))throw Error('Invalid offline entry ID');
-  const existing=s.offlineAttendance.find(r=>r.id===p.id);
-  if(existing){if(existing.createdById!==actorId||existing.workerId!==p.workerId||existing.type!==p.type||existing.occurredAt!==p.occurredAt||existing.reason!==p.reason)throw Error('CONFLICT: Offline entry ID was reused');return s;}
-  const worker=s.workers.find(w=>w.id===p.workerId);if(!worker||worker.archivedAt)throw Error('Worker unavailable. Ask an administrator to review this saved device entry.');
-  if(!['in','out'].includes(p.type)||typeof p.occurredAt!=='string'||!Number.isFinite(Date.parse(p.occurredAt)))throw Error('Invalid offline attendance time');
-  if(typeof p.reason!=='string'||p.reason.trim().length<10||p.reason.length>500)throw Error('Explain the offline entry using 10–500 characters');
+  if(typeof p.id!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(p.id))throw Error('Invalid offline entry ID');
   const schedule=validateSchedule(p.schedule);
+  const existing=s.offlineAttendance.find(r=>r.id===p.id);
+  if(existing){if(existing.createdById!==actorId||existing.workerId!==p.workerId||existing.type!==p.type||existing.occurredAt!==p.occurredAt||existing.reason!==(typeof p.reason==='string'?p.reason.trim():p.reason)||JSON.stringify(existing.schedule)!==JSON.stringify(schedule))throw Error('CONFLICT: Offline entry ID was reused');return s;}
+  const worker=s.workers.find(w=>w.id===p.workerId);if(!worker||worker.archivedAt)throw Error('Worker unavailable. Ask an administrator to review this saved device entry.');
+  if(!['in','out'].includes(p.type)||typeof p.occurredAt!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,9})?Z$/.test(p.occurredAt)||!Number.isFinite(Date.parse(p.occurredAt)))throw Error('Invalid offline attendance time');
+  if(typeof p.reason!=='string'||p.reason.trim().length<10||p.reason.length>500)throw Error('Explain the offline entry using 10–500 characters');
   s.offlineAttendance.push({id:p.id,workerId:worker.id,siteId:worker.siteId,type:p.type,occurredAt:p.occurredAt,schedule,status:'pending',created:now,createdBy:actor,createdById:actorId,reason:p.reason.trim()});
  }else{
   const r=s.offlineAttendance.find(r=>r.id===p.requestId);if(!r)throw Error('Offline attendance not found');
