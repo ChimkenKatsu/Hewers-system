@@ -13,12 +13,13 @@ export function attendanceHours(record:Attendance){
  const schedule=recordSchedule(record),date=day(record.timeIn),start=Date.parse(record.timeIn),end=record.timeOut?Date.parse(record.timeOut):null;
  const shiftStart=shiftTime(date,schedule.start),shiftEnd=shiftTime(date,schedule.end);
  const overlap=(a:number,b:number,c:number,d:number)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
- const breakMs=(a:number,b:number)=>schedule.breakStart&&schedule.breakEnd?overlap(a,b,shiftTime(date,schedule.breakStart),shiftTime(date,schedule.breakEnd)):0;
+ const scheduledBreakMs=(a:number,b:number)=>schedule.breakStart&&schedule.breakEnd?overlap(a,b,shiftTime(date,schedule.breakStart),shiftTime(date,schedule.breakEnd)):0;
+ const breakMs=(a:number,b:number)=>record.lunchOut?overlap(a,b,Date.parse(record.lunchOut),record.lunchIn?Date.parse(record.lunchIn):b):scheduledBreakMs(a,b);
  const lateMinutes=record.shiftKind==='overtime'?0:Math.max(0,Math.ceil((start-shiftStart)/60000));
  if(end===null)return {workedMinutes:null,regularMinutes:null,undertimeMinutes:null,earlyDepartureMinutes:null,lateMinutes};
  const worked=Math.max(0,end-start-(record.shiftKind==='overtime'?0:breakMs(start,end)));
  const regular=Math.max(0,overlap(start,end,shiftStart,shiftEnd)-breakMs(Math.max(start,shiftStart),Math.min(end,shiftEnd)));
- const expected=shiftEnd-shiftStart-breakMs(shiftStart,shiftEnd);
+ const expected=shiftEnd-shiftStart-scheduledBreakMs(shiftStart,shiftEnd);
  return {workedMinutes:Math.round(worked/60000),regularMinutes:record.shiftKind==='overtime'?0:Math.round(regular/60000),undertimeMinutes:record.shiftKind==='overtime'?0:Math.max(0,Math.round((expected-regular)/60000)),earlyDepartureMinutes:record.shiftKind==='overtime'?0:Math.max(0,Math.ceil((shiftEnd-end)/60000)),lateMinutes};
 }
 export function overtimeApprovalStatus(approval:OvertimeApproval,now=Date.now()){
@@ -29,8 +30,9 @@ export function attendanceShift(record:Attendance){
  if(record.shiftKind==='overtime')return {label:'Approved overtime',lateMinutes:0};
  const {lateMinutes}=attendanceHours(record);return {label:lateMinutes?'Late · '+lateMinutes+' min':'On time',lateMinutes};
 }
-export function validateAttendanceCorrection(state:State,record:Attendance,timeIn:string){
+export function validateAttendanceCorrection(state:State,record:Attendance,timeIn:string,timeOut:string|null=record.timeOut){
  const schedule=recordSchedule(record);
+ if(record.lunchOut&&(day(timeIn)!==day(record.lunchOut)||Date.parse(timeIn)>=Date.parse(record.lunchOut)||(timeOut&&Date.parse(timeOut)<Date.parse(record.lunchIn||record.lunchOut))))throw Error('Keep the corrected shift times around the recorded lunch break.');
  if(record.shiftKind!=='overtime'){
   const date=day(timeIn);
   if(Date.parse(timeIn)>=shiftTime(date,schedule.end))throw Error('Corrected regular attendance must start before the scheduled shift end ('+schedule.end+'). Evening work requires a separate approved overtime record.');

@@ -3,12 +3,16 @@ import {recordDiagnostic,diagnosticId} from '../../scan-diagnostics-server';
 import {scanReason} from '../../scan-reasons';
 import {motionChallenge,checkMotion} from '../../face-motion-server';
 import type {MotionFrame} from '../../face-motion';
+import {validateStationary} from '../../face-motion';
 import {usesSupabase,sb,eq} from '../../supabase-server';
 import {env} from 'cloudflare:workers';
 import {context,json,fail,originCheck,commit} from '../../server-access';
 import {authorize,can,hasSite,requireSite} from '../../permissions';
 import {validatePair,matches,distance,FACE_MODEL} from '../../face-math';
 import {applyOperation} from '../../operations';
+import {recordLunch, scannerActions, type ScannerAction} from '../../lunch-attendance';
+import {applyOfflineOperation} from '../../offline-operations';
+import {siteSchedule} from '../../shift-policy';
 
 type FaceTemplate = {worker_id: string; descriptor: string};
 
@@ -44,26 +48,43 @@ async function kioskCheckIn(ctx: Awaited<ReturnType<typeof context>>, p: Record<
  if(typeof siteId!=='string'||!state.sites.some(site=>site.id===siteId))throw Error('Choose a site for hands-free check-in');
  requireSite(access,siteId);
  const db=env.DB!;
- const purpose='kiosk-in';
+ const mode=p.mode??'in';
+ if(typeof mode!=='string'||!Object.hasOwn(scannerActions,mode))throw Error('Choose a valid scanner action.');
+ const action=mode as ScannerAction;
+ const purpose='kiosk-'+action;
  const now=Date.now();
+ const offline=p.action==='kiosk-offline';
+ if(offline){
+  if(p.owner!==access.owner||p.userId!==access.userId)throw Error('FORBIDDEN: Sign in to the account that saved this scan');
+  const existing=state.offlineAttendance?.find(item=>item.id===p.id);
+  if(existing){
+   if(existing.source!=='face'||existing.createdById!==access.userId||existing.siteId!==siteId||existing.type!==action||existing.occurredAt!==p.occurredAt)throw Error('CONFLICT: Offline scan ID was reused');
+   return json({queued:true});
+  }
+ }
  if(p.action==='kiosk-challenge'){
   const id=crypto.randomUUID();
   // Reserve a one-use challenge before a worker is known. This D1 table is
   // available with both storage backends and binds the capture to its site.
   const result=await db.prepare(
-   'INSERT INTO face_challenges (id,owner,user_id,worker_id,purpose,created,expires,used) SELECT ?,?,?,?,?,?,?,0 WHERE (SELECT count(*) FROM face_challenges WHERE owner=? AND user_id=? AND purpose=? AND created>?)<30'
-  ).bind(id,access.owner,access.userId,siteId,purpose,now,now+90000,access.owner,access.userId,purpose,now-60000).run();
+   "INSERT INTO face_challenges (id,owner,user_id,worker_id,purpose,created,expires,used) SELECT ?,?,?,?,?,?,?,0 WHERE (SELECT count(*) FROM face_challenges WHERE owner=? AND user_id=? AND purpose LIKE 'kiosk-%' AND created>?)<30"
+  ).bind(id,access.owner,access.userId,siteId,purpose,now,now+90000,access.owner,access.userId,now-60000).run();
   if(!result.meta.changes)throw Error('RATE: Wait one minute before trying another face scan.');
   return json({challenge:id,motion:await motionChallenge({id,owner:access.owner,operator:access.userId,worker:siteId,purpose,issued:now})});
  }
- if(p.model!==FACE_MODEL||typeof p.challenge!=='string')throw Error('Invalid face submission');
- const used=await db.prepare(
-  'UPDATE face_challenges SET used=1 WHERE id=? AND owner=? AND user_id=? AND worker_id=? AND purpose=? AND used=0 AND expires>?'
- ).bind(p.challenge,access.owner,access.userId,siteId,purpose,now).run();
- if(!used.meta.changes)throw Error('Capture expired or was already used. Start a new capture.');
+ if(p.model!==FACE_MODEL)throw Error('Invalid face submission');
  const samples=validatePair(p.samples);
  const motion=p.motion as {token?:unknown;frames?:MotionFrame[]}|undefined;
- await checkMotion(motion?.token,motion?.frames??[],{id:p.challenge,owner:access.owner,operator:access.userId,worker:siteId,purpose},samples);
+ if(offline){
+  validateStationary(motion?.frames??[],samples,20000);
+ }else{
+  if(typeof p.challenge!=='string')throw Error('Invalid face submission');
+  const used=await db.prepare(
+   'UPDATE face_challenges SET used=1 WHERE id=? AND owner=? AND user_id=? AND worker_id=? AND purpose=? AND used=0 AND expires>?'
+  ).bind(p.challenge,access.owner,access.userId,siteId,purpose,now).run();
+  if(!used.meta.changes)throw Error('Capture expired or was already used. Start a new capture.');
+  await checkMotion(motion?.token,motion?.frames??[],{id:p.challenge,owner:access.owner,operator:access.userId,worker:siteId,purpose},samples);
+ }
 
  let nearby=false;
  let matched:string|undefined;
@@ -78,6 +99,22 @@ async function kioskCheckIn(ctx: Awaited<ReturnType<typeof context>>, p: Record<
  const worker=state.workers.find(w=>w.id===matched&&w.siteId===siteId&&!w.archivedAt);
  if(!worker)return json({code:'mismatch',error:'No enrolled worker at this site matched. Ask the site operator for help.'},422);
  authorize(access,state,'face-check',{workerId:worker.id});
+
+ if(offline){
+  authorize(access,state,'offline-attendance-request',{workerId:worker.id});
+  const next=applyOfflineOperation(state,'offline-attendance-request',{
+   id:p.id,workerId:worker.id,type:action,occurredAt:p.occurredAt,
+   schedule:siteSchedule(state,siteId),reason:'Face matched after an offline capture. Verify device time before approval.',
+  },access.email,new Date(now).toISOString(),access.userId,true);
+  await commit(ctx,next);
+  return json({queued:true});
+ }
+
+ if(action!=='in'){
+  const lunch=recordLunch(state,worker.id,action,new Date(now).toISOString(),access.email);
+  if(!lunch.alreadyRecorded)await commit(ctx,lunch.state);
+  return json({workerName:worker.name,recordedAt:lunch.recordedAt,alreadyRecorded:lunch.alreadyRecorded});
+ }
 
  const open=state.attendance.find(record=>record.workerId===worker.id&&!record.timeOut);
  if(open)return json({workerName:worker.name,timeIn:open.timeIn,alreadyCheckedIn:true});
@@ -96,7 +133,7 @@ export async function POST(req:Request){
  try{
  originCheck(req);if(Number(req.headers.get('content-length'))>120000)throw Error('Request too large');
  const p=await req.json() as any,ctx=await context(req);
- if(p.action==='kiosk-challenge'||p.action==='kiosk-submit')return await kioskCheckIn(ctx,p);
+ if(p.action==='kiosk-challenge'||p.action==='kiosk-submit'||p.action==='kiosk-offline')return await kioskCheckIn(ctx,p);
  const purpose=p.purpose;if(!['enroll','in','out','remove'].includes(purpose))throw Error('Invalid face operation');
  authorize(ctx.access,ctx.state,purpose==='enroll'?'face-enroll':purpose==='remove'?'face-delete':'face-check',{workerId:p.workerId});
  if(purpose==='remove'){if(usesSupabase())await sb('hewers_face_enrollments?workspace_id='+eq(ctx.access.owner)+'&worker_id='+eq(p.workerId),'DELETE');else await env.DB!.prepare('DELETE FROM face_templates WHERE owner=? AND worker_id=?').bind(ctx.access.owner,p.workerId).run();return json({ok:true,message:'Enrollment removed'})}
