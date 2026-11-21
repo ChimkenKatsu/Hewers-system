@@ -82,7 +82,7 @@ export default function App(){
  const notificationCount=notificationFeed.unread+lowStockCount+pendingReviews;
  const reviewed=(state:State,rev:number)=>{setData(state);setRevision(rev)};
  const reviewPanel=(kind:'attendance'|'stock',showForm=true)=><ReviewPanel key={kind} kind={kind} data={data} workspaceId={workspaceId} revision={revision} admin={access.role==='administrator'} actorId={access.userId} onUpdated={reviewed} showForm={showForm}/>;
- useEffect(()=>{void load()},[]);
+ useEffect(()=>{void load(undefined,new URLSearchParams(window.location.search).get('offline')==='attendance')},[]);
  useEffect(()=>{if(!connected||!workspaceId)return;let active=true,inFlight=false,failures=0;let timer:ReturnType<typeof setTimeout>;const controller=new AbortController();
  const schedule=()=>{if(active)timer=setTimeout(refresh,Math.min(30000,2000*2**failures))};
  const refresh=async()=>{clearTimeout(timer);if(inFlight)return;if(document.hidden){schedule();return;}inFlight=true;try{const r=await fetch('/api/workspace',{headers:{'x-workspace-id':workspaceId},signal:controller.signal,cache:'no-store'});const b=await readApiJson<{state:State;revision:number;access:Access;error?:string}>(r);if(!r.ok){if(active&&(r.status===401||r.status===403)){clearOfflineWorkspace();setOfflineWorkspace(null);setConnected(false);setError(b.error||'Sign in again to access your workspace')}throw Error(b.error||'Live updates unavailable')};if(!b.state||!b.access||!Number.isFinite(b.revision))throw Error('Invalid live update');if(active){failures=0;setLiveStatus('Live updates · about every 2s');if(b.revision>=latestRevision.current){latestRevision.current=b.revision;saveOfflineWorkspace(b.access,b.state);setData(b.state);setRevision(b.revision);setServerAccess(b.access)}}}catch{if(active){failures=Math.min(failures+1,4);setLiveStatus(navigator.onLine?'Reconnecting live updates…':'Offline · updates paused')}}finally{inFlight=false;schedule()}};
@@ -91,7 +91,7 @@ export default function App(){
  useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),4000);return()=>clearTimeout(timer)},[toast]);
  useEffect(()=>{const close=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!busy){void closeModal();setLightbox(null)}};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close)},[modal,form,file,draftScope,busy]);
  useEffect(()=>{if(!modal&&!lightbox)return;const previous=document.activeElement as HTMLElement;const dialog=document.querySelector('.modal, .lightbox') as HTMLElement;const controls=()=>Array.from(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),input,select,a[href]')||[]);controls()[0]?.focus();const trap=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;const items=controls(),first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}};document.addEventListener('keydown',trap);return()=>{document.removeEventListener('keydown',trap);previous?.focus()}},[modal,lightbox]);
- async function load(target=workspaceId){
+ async function load(target=workspaceId,preferOffline=false){
   setBusy(true);setError('');
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),6500);
@@ -103,7 +103,7 @@ export default function App(){
    return true;
   };
   try{
-   if(!navigator.onLine&&openSaved())return;
+   if((preferOffline||!navigator.onLine)&&openSaved())return;
    const headers:HeadersInit=target?{'x-workspace-id':target}:{};
    let response:Response;
    try{response=await fetch('/api/workspace',{headers,signal:controller.signal,cache:'no-store'});}

@@ -7,8 +7,6 @@ import '../../app/mood-board.css';
 import '../../app/design-refresh.css';
 import '../../app/startup-brand.css';
 import StartupBrand from '../../app/StartupBrand';
-import {clearOfflineWorkspace} from '../../app/offline-workspace';
-if(window.location.pathname==='/login')clearOfflineWorkspace();
 if(import.meta.env.PROD&&'serviceWorker' in navigator){
   void navigator.serviceWorker.register('/hewers-offline.js',{updateViaCache:'none'}).catch(()=>{});
 }
