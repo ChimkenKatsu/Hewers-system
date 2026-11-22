@@ -4,6 +4,7 @@ import {useState} from 'react';
 import FaceCheckIn from './FaceCheckIn';
 import type {OfflineWorkspace as Snapshot} from './offline-workspace';
 import {useOfflineFaceSummary} from './offline-face-queue';
+import OfflineFaceReview from './OfflineFaceReview';
 
 export default function OfflineWorkspace({snapshot,busy,onReconnect}:{
   snapshot:Snapshot;busy:boolean;onReconnect:()=>void;
@@ -19,6 +20,7 @@ export default function OfflineWorkspace({snapshot,busy,onReconnect}:{
       <h1>Hewers offline</h1>
       <p>Attendance can be captured on this device. Reconnect to open live workspace records and Payroll.</p>
       <p role="status">{summary.queued} {summary.queued===1?'scan':'scans'} waiting to upload.</p>
+      {!scan&&<OfflineFaceReview scans={summary.review}/>}
       {snapshot.face&&!!snapshot.sites.length&&<label className="select-wrap">Construction site
         <select value={siteId} onChange={event=>{setSiteId(event.target.value);setScan(false);}}>
           <option value="">Choose a site</option>

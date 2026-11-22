@@ -68,7 +68,10 @@ async function flush(owner:string,userId:string,signal:AbortSignal){
   const body=await readApiJson<{queued?:boolean;code?:string;error?:string}>(response).catch(()=>null);
   if(response.ok&&body?.queued===true){
    await run('readwrite',store=>store.delete(scan.id));
-  }else if(response.status===422&&body?.code&&['ambiguous','mismatch'].includes(body.code)){
+  }else if(
+   (response.status===403&&body?.code==='offline-site-unavailable')||
+   (response.status===422&&(body?.code==='ambiguous'||body?.code==='mismatch'))
+  ){
    const {encrypted:_,...metadata}=scan;
    await run('readwrite',store=>store.put({...metadata,error:body.error||'The face could not be matched.'}));
   }else{
@@ -103,11 +106,14 @@ export function useOfflineFaceSync(owner:string,userId:string,enabled:boolean){
 }
 
 export function useOfflineFaceSummary(owner:string,userId:string){
- const [summary,setSummary]=useState({queued:0,rejected:0});
+ const [summary,setSummary]=useState({queued:0,review:[] as {id:string;occurredAt:string;error:string}[]});
  useEffect(()=>{
   let active=true;
   const refresh=()=>void list(owner,userId).then(scans=>{
-   if(active)setSummary({queued:scans.filter(scan=>scan.encrypted).length,rejected:scans.filter(scan=>scan.error).length});
+   if(active)setSummary({
+    queued:scans.filter(scan=>scan.encrypted).length,
+    review:scans.flatMap(({id,occurredAt,error})=>error?[{id,occurredAt,error}]:[]).sort((a,b)=>a.occurredAt.localeCompare(b.occurredAt)),
+   });
   }).catch(()=>{});
   refresh();
   window.addEventListener(changed,refresh);

@@ -9,6 +9,7 @@ import {FACE_MODEL} from './face-math';
 import type {MotionAction} from './face-motion';
 import {scannerActions, type ScannerAction} from './lunch-attendance';
 import {saveOfflineFace,useOfflineFaceSummary} from './offline-face-queue';
+import OfflineFaceReview from './OfflineFaceReview';
 
 type Challenge = {challenge:string; motion:{token:string;actions:MotionAction[]}};
 type ScanResult = {workerName:string;timeIn?:string;alreadyCheckedIn?:boolean;recordedAt?:string;alreadyRecorded?:boolean};
@@ -186,7 +187,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
   </div>
   <div className="scan-prompt" role="status">{active&&result&&<strong>{result}<br/></strong>}{status}</div>
   {offline.queued>0&&<p role="status">{offline.queued} {offline.queued===1?'scan is':'scans are'} saved on this device and waiting to sync.</p>}
-  {offline.rejected>0&&<p role="status">{offline.rejected} offline {offline.rejected===1?'scan needs':'scans need'} manual follow-up because the server could not confirm a unique match.</p>}
+  <OfflineFaceReview scans={offline.review}/>
   <div className="camera-stage">
    <video ref={video} muted playsInline aria-label="Live check-in camera"/>
    {active&&preview&&<div className="face-guide"/>}

@@ -45,23 +45,27 @@ async function kioskCheckIn(ctx: Awaited<ReturnType<typeof context>>, p: Record<
  const {access,state}=ctx;
  if(!can(access,'face-check'))throw Error('FORBIDDEN: Your role cannot record face attendance');
  const siteId=p.siteId;
- if(typeof siteId!=='string'||!state.sites.some(site=>site.id===siteId))throw Error('Choose a site for hands-free check-in');
- requireSite(access,siteId);
+ const offline=p.action==='kiosk-offline';
+ if(offline&&(p.owner!==access.owner||p.userId!==access.userId))throw Error('FORBIDDEN: Sign in to the account that saved this scan');
  const db=env.DB!;
  const mode=p.mode??'in';
  if(typeof mode!=='string'||!Object.hasOwn(scannerActions,mode))throw Error('Choose a valid scanner action.');
  const action=mode as ScannerAction;
  const purpose='kiosk-'+action;
  const now=Date.now();
- const offline=p.action==='kiosk-offline';
  if(offline){
-  if(p.owner!==access.owner||p.userId!==access.userId)throw Error('FORBIDDEN: Sign in to the account that saved this scan');
   const existing=state.offlineAttendance?.find(item=>item.id===p.id);
   if(existing){
    if(existing.source!=='face'||existing.createdById!==access.userId||existing.siteId!==siteId||existing.type!==action||existing.occurredAt!==p.occurredAt)throw Error('CONFLICT: Offline scan ID was reused');
    return json({queued:true});
   }
  }
+ const siteExists=typeof siteId==='string'&&state.sites.some(site=>site.id===siteId);
+ if(offline&&(!siteExists||!hasSite(access,siteId)))return json({
+  code:'offline-site-unavailable',error:'This scan’s site is no longer available to your account. Ask an administrator to review the original attendance time.',
+ },403);
+ if(!siteExists)throw Error('Choose a site for hands-free check-in');
+ requireSite(access,siteId);
  if(p.action==='kiosk-challenge'){
   const id=crypto.randomUUID();
   // Reserve a one-use challenge before a worker is known. This D1 table is
