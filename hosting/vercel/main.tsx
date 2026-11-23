@@ -6,6 +6,7 @@ import '../../app/globals.css';
 import '../../app/mood-board.css';
 import '../../app/design-refresh.css';
 import '../../app/startup-brand.css';
+import '../../app/mobile-design.css';
 import StartupBrand from '../../app/StartupBrand';
 if(import.meta.env.PROD&&'serviceWorker' in navigator){
   void navigator.serviceWorker.register('/hewers-offline.js',{updateViaCache:'none'}).catch(()=>{});

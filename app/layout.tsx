@@ -3,6 +3,7 @@ import './globals.css';
 import './mood-board.css';
 import './design-refresh.css';
 import './startup-brand.css';
+import './mobile-design.css';
 import StartupBrand from './StartupBrand';
 export const metadata: Metadata = {title:'Hewers Manpower Services | Site Operations',description:'Attendance, materials and site evidence in one workspace.',icons:{icon:'/favicon.svg'}};
 export default function RootLayout({children}:{children:React.ReactNode}) {return <html lang="en"><body><StartupBrand/>{children}</body></html>}

@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect, useRef, useState} from 'react';
-import {ScanFace} from 'lucide-react';
+import {ArrowLeft,CheckCircle2,CloudOff,ScanFace,TriangleAlert} from 'lucide-react';
 import {readApiJson} from './api-client';
 import {autoEnrollmentGate} from './auto-enrollment';
 import {captureSequence, inspectCapture, loadFaceEngine} from './face-client';
@@ -13,12 +13,13 @@ import OfflineFaceReview from './OfflineFaceReview';
 
 type Challenge = {challenge:string; motion:{token:string;actions:MotionAction[]}};
 type ScanResult = {workerName:string;timeIn?:string;alreadyCheckedIn?:boolean;recordedAt?:string;alreadyRecorded?:boolean};
+type ScannerFeedback={kind:'matched'|'saved'|'retry';text:string;worker?:string};
 const time = new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',hour:'numeric',minute:'2-digit'});
 const readyMessage = 'Look straight at the camera and hold still.';
 
 class ScanConnectionError extends Error {}
 
-export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {workspaceId:string;userId:string;siteId:string;siteName:string}){
+export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBack}: {workspaceId:string;userId:string;siteId:string;siteName:string;onBack?:()=>void}){
  const offline=useOfflineFaceSummary(workspaceId,userId);
  const video=useRef<HTMLVideoElement>(null);
  const activeMode=useRef<ScannerAction>('in');
@@ -28,7 +29,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
  const [visible,setVisible]=useState(false);
  const [preview,setPreview]=useState(false);
  const [message,setMessage]=useState('Starting camera…');
- const [result,setResult]=useState('');
+ const [result,setResult]=useState<ScannerFeedback|null>(null);
  const [cameraError,setCameraError]=useState('');
  const [retry,setRetry]=useState(0);
 
@@ -88,11 +89,11 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
     setMessage('Matching face · '+scannerActions[action]+'…');
     const entry=await post<ScanResult>({action:'kiosk-submit',mode:action,challenge,model:FACE_MODEL,samples,motion:{token:motion.token,frames:pairedFrames}});
     const recordedAt=entry.recordedAt??entry.timeIn;
-    if(alive()&&recordedAt)setResult(entry.workerName+' · '+scannerActions[action]+(entry.alreadyRecorded||entry.alreadyCheckedIn?' already recorded':' recorded')+' at '+time.format(new Date(recordedAt))+' PHT');
+    if(alive()&&recordedAt)setResult({kind:'matched',worker:entry.workerName,text:scannerActions[action]+(entry.alreadyRecorded||entry.alreadyCheckedIn?' already recorded':' recorded')+' · '+time.format(new Date(recordedAt))+' PHT'});
    }catch(error){
     if(!(error instanceof ScanConnectionError)||!alive())throw error;
     await saveOfflineFace({owner:workspaceId,userId,siteId,mode:action,occurredAt,frames:pairedFrames});
-    if(alive())setResult('Scan saved on this device · face matching and approval pending.');
+    if(alive())setResult({kind:'saved',text:'Face matching and approval follow when the connection returns.'});
    }
   }
 
@@ -107,7 +108,6 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
      waitingForExit=false;
      emptySince=undefined;
      gate=autoEnrollmentGate(550);
-     setResult('');
      setMessage(readyMessage);
     }
    }else{
@@ -119,9 +119,10 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
     setMessage(next.seconds?'Hold still · '+scannerActions[gateMode]+' will record automatically…':hint.ready?readyMessage:hint.message);
     if(next.capture){
      waitingForExit=true;
+     setResult(null);
      setScanning(true);
      try{await scan(gateMode)}catch(error){
-      if(alive())setResult(error instanceof Error?error.message:'Unable to record check-in.');
+      if(alive())setResult({kind:'retry',text:error instanceof Error?error.message:'Unable to record attendance.'});
      }finally{
       if(!controller.signal.aborted)setScanning(false);
      }
@@ -135,7 +136,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
    setPreview(false);
    setScanning(false);
    setCameraError('');
-   setResult('');
+   setResult(null);
    setMessage('Starting camera…');
    try{
     if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Open Hewers over HTTPS to use the camera.');
@@ -168,8 +169,10 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
  const status=!siteId?'The site operator needs to choose a construction site above.'
   :paused?'Camera paused.':!visible?'Camera waits for the check-in screen to be visible.'
   :cameraError?'Camera unavailable.':message;
- return <section className="panel face-camera">
-  <div className="panel-head"><div><h2 id="hands-free-check-in-heading" tabIndex={-1}><ScanFace size={20}/>Hands-free attendance</h2>
+ return <section className="panel face-camera kiosk-scan">
+  <div className="panel-head"><div>
+   {onBack&&<button className="text-btn kiosk-back" onClick={onBack}><ArrowLeft size={16}/>Attendance</button>}
+   <h2 id="hands-free-check-in-heading" tabIndex={-1}><ScanFace size={20}/>Hands-free attendance</h2>
    <p>{siteName?siteName+' · ':''}One person at a time. Look at the camera to record the selected action.</p></div>
    <span className="badge amber">Supervised use</span>
   </div>
@@ -179,20 +182,26 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName}: {wo
      const action=event.target.value as ScannerAction;
      activeMode.current=action;
      setMode(action);
-     setResult('');
+     setResult(null);
     }}>
      {Object.entries(scannerActions).map(([action,label])=><option key={action} value={action}>{label}</option>)}
     </select>
    </label>
   </div>
-  <div className="scan-prompt" role="status">{active&&result&&<strong>{result}<br/></strong>}{status}</div>
-  {offline.queued>0&&<p role="status">{offline.queued} {offline.queued===1?'scan is':'scans are'} saved on this device and waiting to sync.</p>}
-  <OfflineFaceReview scans={offline.review}/>
   <div className="camera-stage">
    <video ref={video} muted playsInline aria-label="Live check-in camera"/>
    {active&&preview&&<div className="face-guide"/>}
-   {(!active||!preview)&&<div className="camera-placeholder"><ScanFace size={42}/><p>{status}</p></div>}
+   {(!active||!preview)&&<div className="camera-placeholder" aria-hidden="true"><ScanFace size={42}/></div>}
   </div>
+  <div className="kiosk-feedback" role="status">
+   {active&&result&&<div className={'kiosk-result '+result.kind}>
+    {result.kind==='matched'?<CheckCircle2/>:result.kind==='saved'?<CloudOff/>:<TriangleAlert/>}
+    <div><strong>{result.kind==='matched'?result.worker:result.kind==='saved'?'Saved offline':'Scan needs attention'}</strong><span>{result.text}</span></div>
+   </div>}
+   <p className="kiosk-status">{status}</p>
+  </div>
+  {offline.queued>0&&<p className="kiosk-queue">{offline.queued} {offline.queued===1?'scan':'scans'} waiting to sync</p>}
+  <OfflineFaceReview scans={offline.review}/>
   {active&&cameraError&&<div className="error" role="alert">{cameraError}</div>}
   {!!siteId&&<div className="camera-actions">
    {cameraError&&!paused

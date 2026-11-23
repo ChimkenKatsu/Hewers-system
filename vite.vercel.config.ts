@@ -15,7 +15,7 @@ export default defineConfig({
    enforce:'post',
    generateBundle(_options,bundle){
      const shellAssets=Object.keys(bundle).filter(name=>name.endsWith('.js')||name.endsWith('.css')).sort();
-     const staticFiles=['/hewers-logo.png','/hewers-logo.svg','/hewers-mark.svg','/vendor/face-api-1.7.15.js',
+     const staticFiles=['/hewers-logo.png','/hewers-logo.svg','/hewers-logo-white.svg','/hewers-mark.svg','/vendor/face-api-1.7.15.js',
        ...readdirSync(modelDirectory).sort().map(name=>'/face-models/'+name)];
      const files=['/',...shellAssets.map(name=>'/'+name),...staticFiles];
      const template=readFileSync(offlineWorker,'utf8');
