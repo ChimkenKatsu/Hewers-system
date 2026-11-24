@@ -90,8 +90,29 @@ async function captureStationary(video:HTMLVideoElement,started:number,onPrompt:
   if(Date.now()>deadline)throw Error('Could not capture a clear face. '+(hint||'Use even lighting, face the camera and hold still.'));
   if(frames.length){const remaining=350-(Date.now()-started-frames[0].elapsed);if(remaining>0)await new Promise(resolve=>setTimeout(resolve,remaining));if(!alive())throw Error('Camera check cancelled');}
   onPrompt(frames.length?'Verifying face · checking the second capture':'Verifying face · checking the first capture');
-  try{await exclusive(video,async()=>{const f=await observe(video);const elapsed=Date.now()-started,descriptor=await f.describe();if(!alive())throw Error('Camera check cancelled');if(frames.length)validatePair([frames[0].descriptor,descriptor]);frames.push({elapsed,eyeRatio:f.eyeRatio,yaw:f.yaw,descriptor})});}
-  catch(e){if(!alive())throw e;const reason=scanReason(e);if(!['no-face','multiple-faces','too-small','out-of-frame','not-centered','lighting','blur','camera','inconsistent'].includes(reason))throw e;hint=e instanceof Error?e.message:'Face the camera';if(reason==='inconsistent')frames.length=0;onPrompt(hint);}
+  try{
+   const frame=await exclusive(video,async()=>{
+    const observed=await observe(video);
+    const elapsed=Date.now()-started;
+    const descriptor=await observed.describe();
+    return {elapsed,eyeRatio:observed.eyeRatio,yaw:observed.yaw,descriptor};
+   });
+   if(!alive())throw Error('Camera check cancelled');
+   if(frames.length){
+    try{validatePair([frames[0].descriptor,frame.descriptor]);}
+    catch(error){
+     if(scanReason(error)!=='inconsistent')throw error;
+     // The newer clean frame is a better starting point after a worker moves.
+     // The next sample still has to be independent and pass the same pair check.
+     frames[0]=frame;
+     hint='Hold still and look straight ahead for the next capture.';
+     onPrompt(hint);
+     continue;
+    }
+   }
+   frames.push(frame);
+  }
+  catch(e){if(!alive())throw e;const reason=scanReason(e);if(!['no-face','multiple-faces','too-small','out-of-frame','not-centered','lighting','blur','camera'].includes(reason))throw e;hint=e instanceof Error?e.message:'Face the camera';onPrompt(hint);}
   if(!frames.length)await new Promise(resolve=>setTimeout(resolve,180));
  }
  return frames;

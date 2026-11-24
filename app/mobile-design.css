@@ -266,3 +266,13 @@
  .app-shell .modal[data-record-form="worker"] .modal-actions{background:white}
  .app-shell .modal[data-record-form="worker"] .modal-actions button[type="submit"]{flex-basis:100%}
 }
+
+.mobile-attendance-tools{display:none}
+@media(max-width:700px){
+ .app-shell .section-toolbar .tabs .attendance-tool-tab{display:none}
+ .app-shell .section-toolbar .mobile-attendance-tools{
+  display:flex;align-items:center;flex-wrap:wrap;gap:0 12px;min-width:0;width:100%
+ }
+ .mobile-attendance-tools>span{font-size:12px;font-weight:600}
+ .app-shell .mobile-attendance-tools>select{width:auto;flex:1;min-width:0}
+}

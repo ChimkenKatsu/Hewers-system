@@ -137,10 +137,10 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
      }finally{
       if(!controller.signal.aborted)setScanning(false);
      }
-     if(alive())setMessage('Step away to clear the camera for the next worker.');
+     if(alive())setMessage('Step away from the camera before the next scan.');
     }
    }
-   if(alive())timer=setTimeout(()=>void inspect(),250);
+   if(alive())timer=setTimeout(()=>void inspect(),150);
   }
 
   async function start(){
@@ -151,6 +151,10 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
    setMessage('Starting camera…');
    try{
     if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Open Hewers over HTTPS to use the camera.');
+    const engine=loadFaceEngine();
+    // Camera permission can take longer than model loading. Observe a rejection
+    // immediately, then surface it through the existing camera error handler.
+    void engine.catch(()=>{});
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
     if(!alive()){stream.getTracks().forEach(track=>track.stop());return;}
     stream.getVideoTracks()[0]?.addEventListener('ended',()=>{
@@ -161,7 +165,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
     if(!alive())return;
     setPreview(true);
     setMessage('Loading face recognition…');
-    await loadFaceEngine();
+    await engine;
     if(alive())void inspect();
    }catch(error){
     if(controller.signal.aborted)return;
