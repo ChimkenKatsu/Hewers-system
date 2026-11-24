@@ -13,15 +13,17 @@ import OfflineFaceReview from './OfflineFaceReview';
 
 type Challenge = {challenge:string; motion:{token:string;actions:MotionAction[]}};
 type ScanResult = {workerName:string;timeIn?:string;alreadyCheckedIn?:boolean;recordedAt?:string;alreadyRecorded?:boolean};
-type ScannerFeedback={kind:'matched'|'saved'|'retry';text:string;worker?:string};
+type ScannerFeedback={kind:'matched'|'saved'|'retry'|'unrecognized';text:string;worker?:string};
 const time = new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',hour:'numeric',minute:'2-digit'});
 const readyMessage = 'Look straight at the camera and hold still.';
 
 class ScanConnectionError extends Error {}
+class UnrecognizedWorkerError extends Error {}
 
-export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBack}: {workspaceId:string;userId:string;siteId:string;siteName:string;onBack?:()=>void}){
+export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBack, onRegister}: {workspaceId:string;userId:string;siteId:string;siteName:string;onBack?:()=>void;onRegister?:()=>void}){
  const offline=useOfflineFaceSummary(workspaceId,userId);
  const video=useRef<HTMLVideoElement>(null);
+ const recognitionDialog=useRef<HTMLDialogElement>(null);
  const activeMode=useRef<ScannerAction>('in');
  const [mode,setMode]=useState<ScannerAction>('in');
  const [scanning,setScanning]=useState(false);
@@ -32,6 +34,13 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
  const [result,setResult]=useState<ScannerFeedback|null>(null);
  const [cameraError,setCameraError]=useState('');
  const [retry,setRetry]=useState(0);
+
+ useEffect(()=>{
+  const dialog=recognitionDialog.current;
+  if(!dialog)return;
+  if(result?.kind==='unrecognized'&&!paused&&visible&&!dialog.open)dialog.showModal();
+  else if((result?.kind!=='unrecognized'||paused||!visible)&&dialog.open)dialog.close();
+ },[result,paused,visible]);
 
  useEffect(()=>{
   const update=()=>setVisible(!document.hidden);
@@ -68,7 +77,8 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
     throw new ScanConnectionError('Attendance server unavailable.');
    });
    if(response.status>=502&&response.status<=504)throw new ScanConnectionError('Attendance server unavailable.');
-   const data=await readApiJson<T & {error?:string}>(response);
+   const data=await readApiJson<T & {error?:string;code?:string}>(response);
+   if(response.status===422&&data.code==='mismatch')throw new UnrecognizedWorkerError(data.error);
    if(!response.ok)throw Error(data.error||'Unable to record check-in. Ask the site operator for help.');
    return data;
   }
@@ -99,6 +109,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
 
   async function inspect(){
    if(!alive())return;
+   if(recognitionDialog.current?.open){timer=setTimeout(()=>void inspect(),250);return;}
    const hint=await inspectCapture(player!);
    if(!alive())return;
    if(waitingForExit){
@@ -122,7 +133,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
      setResult(null);
      setScanning(true);
      try{await scan(gateMode)}catch(error){
-      if(alive())setResult({kind:'retry',text:error instanceof Error?error.message:'Unable to record attendance.'});
+      if(alive())setResult({kind:error instanceof UnrecognizedWorkerError?'unrecognized':'retry',text:error instanceof Error?error.message:'Unable to record attendance.'});
      }finally{
       if(!controller.signal.aborted)setScanning(false);
      }
@@ -169,7 +180,14 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
  const status=!siteId?'The site operator needs to choose a construction site above.'
   :paused?'Camera paused.':!visible?'Camera waits for the check-in screen to be visible.'
   :cameraError?'Camera unavailable.':message;
- return <section className="panel face-camera kiosk-scan">
+ return <section className="panel face-camera kiosk-scan" data-scan-result={active?result?.kind:undefined}>
+  <dialog ref={recognitionDialog} className="face-alert" aria-labelledby="scan-unrecognized-title" aria-describedby="scan-unrecognized-message" onClose={()=>setResult(current=>current?.kind==='unrecognized'?null:current)}>
+   <TriangleAlert className="scan-warning-icon" size={44} aria-hidden="true"/>
+   <h2 id="scan-unrecognized-title">Worker not recognized</h2>
+   <p id="scan-unrecognized-message">{result?.kind==='unrecognized'?result.text:''}</p>
+   {onRegister&&<button className="btn" onClick={onRegister}>Register New Worker</button>}
+   <button className={onRegister?'text-btn':'btn'} onClick={()=>recognitionDialog.current?.close()}>Return to scanner</button>
+  </dialog>
   <div className="panel-head"><div>
    {onBack&&<button className="text-btn kiosk-back" onClick={onBack}><ArrowLeft size={16}/>Attendance</button>}
    <h2 id="hands-free-check-in-heading" tabIndex={-1}><ScanFace size={20}/>Hands-free attendance</h2>
@@ -190,13 +208,13 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
   </div>
   <div className="camera-stage">
    <video ref={video} muted playsInline aria-label="Live check-in camera"/>
-   {active&&preview&&<div className="face-guide"/>}
+   {active&&preview&&<div className="face-guide" aria-hidden="true"/>}
    {(!active||!preview)&&<div className="camera-placeholder" aria-hidden="true"><ScanFace size={42}/></div>}
   </div>
   <div className="kiosk-feedback" role="status">
-   {active&&result&&<div className={'kiosk-result '+result.kind}>
+   {active&&result&&result.kind!=='unrecognized'&&<div className={'kiosk-result '+result.kind}>
     {result.kind==='matched'?<CheckCircle2/>:result.kind==='saved'?<CloudOff/>:<TriangleAlert/>}
-    <div><strong>{result.kind==='matched'?result.worker:result.kind==='saved'?'Saved offline':'Scan needs attention'}</strong><span>{result.text}</span></div>
+    <div><strong>{result.kind==='matched'?'Face scan successful':result.kind==='saved'?'Saved offline':'Scan needs attention'}</strong>{result.worker&&<span className="kiosk-worker">{result.worker}</span>}<span>{result.text}</span></div>
    </div>}
    <p className="kiosk-status">{status}</p>
   </div>
