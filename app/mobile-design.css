@@ -350,3 +350,28 @@
  .notifications-layout{grid-template-columns:minmax(0,1fr)}
  .notification-history-list{max-height:clamp(220px,48dvh,420px)}
 }
+
+.worker-name-list{list-style:none;margin:0;padding:0}
+.worker-name-list li{border-top:1px solid var(--line)}
+.worker-name-list button{
+ display:flex;align-items:center;justify-content:space-between;gap:12px;
+ width:100%;min-height:48px;padding:10px 16px;border:0;
+ background:transparent;color:var(--navy);font:inherit;font-weight:600;text-align:left;
+}
+.worker-name-list button:hover{background:#f1f6fb}
+.worker-name-list button span{overflow-wrap:anywhere}
+.worker-name-list button svg{flex-shrink:0}
+.worker-profile-dialog{
+ margin:auto;width:min(440px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;
+ padding:20px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--navy)
+}
+.worker-profile-dialog::backdrop{background:#04244888}
+.worker-profile-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.worker-profile-dialog h2{font-size:22px;overflow-wrap:anywhere}
+.worker-profile-dialog .icon-btn{flex-shrink:0;min-width:44px;min-height:44px}
+.worker-profile-dialog dl{margin:0}
+.worker-profile-dialog dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.worker-profile-dialog dt{font-weight:600}
+.worker-profile-dialog dd{margin:0;overflow-wrap:anywhere}
+.worker-profile-actions{margin-top:12px}
+.worker-profile-actions .btn{width:100%;justify-content:center}
