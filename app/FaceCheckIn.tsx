@@ -181,7 +181,8 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
  },[workspaceId,userId,siteId,visible,paused,retry]);
 
  const active=!!siteId&&visible&&!paused;
- const status=!siteId?'The site operator needs to choose a construction site above.'
+ const hasPreview=active&&preview;
+ const status=!siteId?'Select a site above to start the camera.'
   :paused?'Camera paused.':!visible?'Camera waits for the check-in screen to be visible.'
   :cameraError?'Camera unavailable.':message;
  return <section className="panel face-camera kiosk-scan">
@@ -192,17 +193,17 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
    {onRegister&&<button className="btn" onClick={onRegister}>Register New Worker</button>}
    <button className={onRegister?'text-btn':'btn'} onClick={()=>recognitionDialog.current?.close()}>Return to scanner</button>
   </dialog>
-  <div className="camera-stage">
-   <video ref={video} muted playsInline aria-label="Live check-in camera"/>
-   {active&&preview&&<div className="face-guide" aria-hidden="true"/>}
-   {(!active||!preview)&&<div className="camera-placeholder" aria-hidden="true"><ScanFace size={42}/></div>}
+  <div className="camera-stage" data-preview={hasPreview?'live':siteId?'waiting':'select-site'}>
+   <video ref={video} muted playsInline disablePictureInPicture aria-label="Live check-in camera" aria-hidden={!hasPreview}/>
+   {hasPreview&&<div className="face-guide" aria-hidden="true"/>}
+   {!hasPreview&&<div className="camera-placeholder" aria-hidden="true"><ScanFace size={42}/></div>}
    <div className="kiosk-top-overlay">
     {onBack&&<button className="text-btn kiosk-back" onClick={onBack}><ArrowLeft size={16}/>Attendance</button>}
     <h2 id="hands-free-check-in-heading" tabIndex={-1}>Hands-free attendance</h2>
     {active&&result?.kind==='matched'
      ?<p className="kiosk-success-title" role="status">Face Scanned Successfully</p>
-     :<p>{siteName?siteName+' · ':''}One person at a time. Face the camera and hold still.</p>}
-    <label className="select-wrap">Attendance action
+     :siteId&&<p>{siteName?siteName+' · ':''}Face the camera and hold still.</p>}
+    {siteId&&<label className="select-wrap">Attendance action
      <select value={mode} disabled={active&&scanning} onChange={event=>{
       const action=event.target.value as ScannerAction;
       activeMode.current=action;
@@ -211,7 +212,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
      }}>
       {Object.entries(scannerActions).map(([action,label])=><option key={action} value={action}>{label}</option>)}
      </select>
-    </label>
+    </label>}
    </div>
    <div className="kiosk-feedback" role="status">
     {active&&result&&result.kind!=='unrecognized'&&<div className={'kiosk-result '+result.kind}>

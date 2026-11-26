@@ -375,3 +375,24 @@
 .worker-profile-dialog dd{margin:0;overflow-wrap:anywhere}
 .worker-profile-actions{margin-top:12px}
 .worker-profile-actions .btn{width:100%;justify-content:center}
+
+/* Suppress native WebView video artwork until a live camera stream is ready. */
+.camera-stage[data-preview]:not([data-preview="live"])>video{opacity:0;pointer-events:none}
+.kiosk-scan .camera-stage[data-preview="select-site"]{
+ grid-template-rows:auto minmax(80px,1fr) auto;
+ min-height:220px;background:#e9eff4;
+}
+.kiosk-scan [data-preview="select-site"] .camera-placeholder{grid-row:2;position:relative;padding:12px}
+.kiosk-scan [data-preview="select-site"] :is(.kiosk-top-overlay,.kiosk-feedback){background:transparent}
+.face-alert::backdrop,.app-shell .modal-backdrop[data-attendance-popup]{
+ background:rgb(4 36 72 / 24%);
+ backdrop-filter:none;
+}
+.face-alert{background:rgb(255 255 255 / 96%)}
+@media(max-width:700px){
+ .app-shell[data-mobile-scanner="site"] .content>.filterbar{margin:12px 0}
+ .app-shell[data-mobile-scanner="site"] .filterbar .sync-label{display:none}
+ .app-shell .kiosk-scan .camera-stage:not([data-preview="select-site"]){
+  min-height:max(410px,calc(100dvh - 175px - env(safe-area-inset-bottom,0px)));
+ }
+}
