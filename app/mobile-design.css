@@ -206,7 +206,6 @@
 
 /* Attendance scanner and registration states */
 .scan-warning-icon{display:block;margin:0 auto 16px;color:#d71939}
-.kiosk-result .kiosk-worker{font-size:15px;font-weight:600}
 .kiosk-scan .face-alert,.face-layout .face-alert{margin:auto}
 
 @media(max-width:700px){
@@ -232,7 +231,6 @@
  }
  .kiosk-scan .camera-stage .face-guide{width:60%;max-width:245px}
  .kiosk-scan .kiosk-feedback{position:relative;margin:0;padding:12px 16px 4px}
- .kiosk-scan[data-scan-result="matched"] .kiosk-feedback{margin-top:-92px}
  .kiosk-scan .kiosk-result{min-height:72px;box-shadow:0 3px 18px #04244818}
  .kiosk-scan .kiosk-status{margin:8px 0;line-height:1.4}
  .kiosk-scan>.fineprint,.kiosk-scan>.error{margin-inline:16px}
@@ -275,4 +273,32 @@
  }
  .mobile-attendance-tools>span{font-size:12px;font-weight:600}
  .app-shell .mobile-attendance-tools>select{width:auto;flex:1;min-width:0}
+}
+
+/* Overlay the live frame while keeping each text block in its own grid row. */
+.kiosk-scan .camera-stage{
+ display:grid;grid-template-rows:auto minmax(160px,1fr) auto;
+ position:relative;isolation:isolate;overflow:hidden;height:auto;min-height:520px;
+}
+.kiosk-scan .camera-stage video{
+ position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+}
+.kiosk-scan .camera-stage .face-guide{z-index:1;pointer-events:none}
+.kiosk-top-overlay,.kiosk-scan .kiosk-feedback{
+ position:relative;z-index:2;margin:0;padding:10px 16px;
+ background:rgb(255 255 255 / 50%);color:#042448;text-align:center;
+}
+.kiosk-top-overlay{grid-row:1}
+.kiosk-top-overlay h2{font-size:20px;margin:0}
+.kiosk-top-overlay p{font-size:13px;margin:4px 0 8px}
+.kiosk-top-overlay .kiosk-success-title{font-size:21px;font-weight:700}
+.kiosk-top-overlay .select-wrap{display:flex;align-items:center;justify-content:center;gap:8px;margin-inline:auto;max-width:340px;font-size:12px}
+.kiosk-top-overlay select{min-width:0}
+.kiosk-scan .kiosk-feedback{grid-row:3}
+.kiosk-scan .kiosk-result{text-align:left;max-width:430px;margin-inline:auto}
+@media(max-width:700px){
+ .app-shell .kiosk-scan .camera-stage,.offline-kiosk-screen .kiosk-scan .camera-stage{
+  height:auto;min-height:max(460px,calc(100dvh - 175px - env(safe-area-inset-bottom,0px)));
+ }
+ .kiosk-scan .camera-stage .face-guide{max-width:245px}
 }

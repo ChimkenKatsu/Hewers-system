@@ -184,7 +184,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
  const status=!siteId?'The site operator needs to choose a construction site above.'
   :paused?'Camera paused.':!visible?'Camera waits for the check-in screen to be visible.'
   :cameraError?'Camera unavailable.':message;
- return <section className="panel face-camera kiosk-scan" data-scan-result={active?result?.kind:undefined}>
+ return <section className="panel face-camera kiosk-scan">
   <dialog ref={recognitionDialog} className="face-alert" aria-labelledby="scan-unrecognized-title" aria-describedby="scan-unrecognized-message" onClose={()=>setResult(current=>current?.kind==='unrecognized'?null:current)}>
    <TriangleAlert className="scan-warning-icon" size={44} aria-hidden="true"/>
    <h2 id="scan-unrecognized-title">Worker not recognized</h2>
@@ -192,35 +192,34 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
    {onRegister&&<button className="btn" onClick={onRegister}>Register New Worker</button>}
    <button className={onRegister?'text-btn':'btn'} onClick={()=>recognitionDialog.current?.close()}>Return to scanner</button>
   </dialog>
-  <div className="panel-head"><div>
-   {onBack&&<button className="text-btn kiosk-back" onClick={onBack}><ArrowLeft size={16}/>Attendance</button>}
-   <h2 id="hands-free-check-in-heading" tabIndex={-1}><ScanFace size={20}/>Hands-free attendance</h2>
-   <p>{siteName?siteName+' · ':''}One person at a time. Look at the camera to record the selected action.</p></div>
-   <span className="badge amber">Supervised use</span>
-  </div>
-  <div className="camera-actions">
-   <label className="select-wrap">Attendance action
-    <select value={mode} disabled={active&&scanning} onChange={event=>{
-     const action=event.target.value as ScannerAction;
-     activeMode.current=action;
-     setMode(action);
-     setResult(null);
-    }}>
-     {Object.entries(scannerActions).map(([action,label])=><option key={action} value={action}>{label}</option>)}
-    </select>
-   </label>
-  </div>
   <div className="camera-stage">
    <video ref={video} muted playsInline aria-label="Live check-in camera"/>
    {active&&preview&&<div className="face-guide" aria-hidden="true"/>}
    {(!active||!preview)&&<div className="camera-placeholder" aria-hidden="true"><ScanFace size={42}/></div>}
-  </div>
-  <div className="kiosk-feedback" role="status">
-   {active&&result&&result.kind!=='unrecognized'&&<div className={'kiosk-result '+result.kind}>
-    {result.kind==='matched'?<CheckCircle2/>:result.kind==='saved'?<CloudOff/>:<TriangleAlert/>}
-    <div><strong>{result.kind==='matched'?'Face scan successful':result.kind==='saved'?'Saved offline':'Scan needs attention'}</strong>{result.worker&&<span className="kiosk-worker">{result.worker}</span>}<span>{result.text}</span></div>
-   </div>}
-   <p className="kiosk-status">{status}</p>
+   <div className="kiosk-top-overlay">
+    {onBack&&<button className="text-btn kiosk-back" onClick={onBack}><ArrowLeft size={16}/>Attendance</button>}
+    <h2 id="hands-free-check-in-heading" tabIndex={-1}>Hands-free attendance</h2>
+    {active&&result?.kind==='matched'
+     ?<p className="kiosk-success-title" role="status">Face Scanned Successfully</p>
+     :<p>{siteName?siteName+' · ':''}One person at a time. Face the camera and hold still.</p>}
+    <label className="select-wrap">Attendance action
+     <select value={mode} disabled={active&&scanning} onChange={event=>{
+      const action=event.target.value as ScannerAction;
+      activeMode.current=action;
+      setMode(action);
+      setResult(null);
+     }}>
+      {Object.entries(scannerActions).map(([action,label])=><option key={action} value={action}>{label}</option>)}
+     </select>
+    </label>
+   </div>
+   <div className="kiosk-feedback" role="status">
+    {active&&result&&result.kind!=='unrecognized'&&<div className={'kiosk-result '+result.kind}>
+     {result.kind==='matched'?<CheckCircle2 aria-hidden="true"/>:result.kind==='saved'?<CloudOff aria-hidden="true"/>:<TriangleAlert aria-hidden="true"/>}
+     <div><strong>{result.kind==='matched'?result.worker:result.kind==='saved'?'Saved offline':'Scan needs attention'}</strong><span>{result.text}</span></div>
+    </div>}
+    <p className="kiosk-status">{status}</p>
+   </div>
   </div>
   {offline.queued>0&&<p className="kiosk-queue">{offline.queued} {offline.queued===1?'scan':'scans'} waiting to sync</p>}
   <OfflineFaceReview scans={offline.review}/>
