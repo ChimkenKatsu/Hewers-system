@@ -22,19 +22,37 @@ try{
  assert.equal((await req('/api/accounts','GET',null,auditor)).r.status,403);
  assert.equal((await req('/api/google','GET',null,auditor)).r.status,403);
  assert.equal((await req('/api/workspace','GET',null,{...auditor,'x-workspace-id':'another-team'})).r.status,403);
- state=await op('worker',{name:'Awaiting Approval',trade:'Mason',siteId:siteA},auditor);assert.equal(state.workers.length,0);const pending=state.workerRequests[0];assert.equal(pending.status,'pending');
+ const auditorEmail=result.b.access.email;
+ async function seedLegacyRequest(name){
+  const stored=await db.prepare('SELECT state FROM workspaces WHERE owner=?').bind(owner).first();
+  const snapshot=JSON.parse(stored.state);
+  const request={id:crypto.randomUUID(),name,trade:'Mason',siteId:siteA,status:'pending',created:new Date().toISOString(),createdBy:auditorEmail};
+  (snapshot.workerRequests??=[]).push(request);
+  await db.prepare('UPDATE workspaces SET state=? WHERE owner=?').bind(JSON.stringify(snapshot),owner).run();
+  return request;
+ }
+ state=await op('worker',{name:'Direct registration',trade:'Mason',siteId:siteA},auditor);
+ assert.equal(state.workers[0].name,'Direct registration');
+ assert.equal((state.workerRequests||[]).length,0);
+ const enrollment=await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:state.workers[0].id},auditor);
+ assert.equal(enrollment.r.status,200,JSON.stringify(enrollment.b));
+ const pending=await seedLegacyRequest('Awaiting Approval');
  assert.equal((await req('/api/face','POST',{action:'challenge',purpose:'enroll',workerId:pending.id},auditor)).r.status,400);
  assert.equal((await req('/api/workspace','POST',{action:'worker',payload:{name:'Forged',trade:'Mason',siteId:siteB},revision:rev},auditor)).r.status,403);
  assert.equal((await req('/api/workspace','POST',{action:'worker-review',payload:{requestId:pending.id,decision:'accepted'},revision:rev},auditor)).r.status,403);
  result=await req('/api/workspace','GET',null,admin);assert.equal(result.b.state.workerRequests[0].status,'pending');rev=result.b.revision;
- state=await op('worker-review',{requestId:pending.id,decision:'accepted'},admin);assert.equal(state.workers.length,1);assert.equal(state.workerRequests[0].reviewedBy,'admin1');
+ state=await op('worker-review',{requestId:pending.id,decision:'accepted'},admin);assert.equal(state.workers.length,2);assert.equal(state.workerRequests[0].reviewedBy,'admin1');
  assert.equal((await req('/api/workspace','POST',{action:'worker-review',payload:{requestId:pending.id,decision:'declined'},revision:rev},admin)).r.status,400);
  state=await op('material',{name:'Cement',unit:'bags',balance:10,minimum:2,siteId:siteA},admin);const material=state.materials[0];
  state=await op('movement',{materialId:material.id,type:'Delivery',quantity:5,note:'Auditor delivery'},auditor);assert.equal(state.materials[0].balance,15);
  state=await op('movement',{materialId:material.id,type:'Issue',quantity:3,note:'Auditor issue'},auditor);assert.equal(state.materials[0].balance,12);
 
  // New approval workflows are tested through real authenticated routes.
- state=await op('attendance',{workerId:state.workers[0].id,type:'in',note:'Isolated test entry'},admin);const attendance=state.attendance[0],workerId=attendance.workerId;
+ const workerId=state.workers[0].id;
+ const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+ const attendance={id:crypto.randomUUID(),workerId,siteId:siteA,timeIn:new Date(yesterday+'T08:05:00+08:00').toISOString(),timeOut:null,method:'Manual',note:'Isolated test entry'};
+ const workspace=await db.prepare('SELECT state FROM workspaces WHERE owner=?').bind(owner).first();
+ await db.prepare('UPDATE workspaces SET state=? WHERE owner=?').bind(JSON.stringify({...JSON.parse(workspace.state),attendance:[attendance]}),owner).run();
  let duplicate=await req('/api/face','POST',{action:'challenge',purpose:'in',workerId,attemptId:'duplicate-attempt-0001'},auditor);assert.equal(duplicate.r.status,409);assert.equal(duplicate.b.code,'duplicate');
  const correction={attendanceId:attendance.id,expectedIn:attendance.timeIn,expectedOut:null,proposedIn:new Date(Date.parse(attendance.timeIn)-60000).toISOString(),proposedOut:null,reason:'Correct site arrival time discrepancy'};
  state=await op('attendance-correction-request',correction,auditor);const correctionId=state.attendanceCorrections[0].id;assert.equal(state.attendance[0].timeIn,attendance.timeIn);
@@ -55,7 +73,7 @@ try{
  assert.deepEqual((await req('/api/notifications','GET',null,auditor)).b.readIds,[],'Read history is per account');
  assert.equal((await req('/api/notifications','POST',{ids:[pending.id+':accepted']},auditor)).r.status,200);
  assert.deepEqual((await req('/api/notifications','GET',null,admin)).b.readIds,[pending.id+':submitted']);
- state=await op('worker',{name:'Needs correction',trade:'Mason',siteId:siteA},auditor);const toDecline=state.workerRequests.find(r=>r.name==='Needs correction');
+ const toDecline=await seedLegacyRequest('Needs correction');
  assert.equal((await req('/api/workspace','POST',{action:'worker-review',payload:{requestId:toDecline.id,decision:'declined'},revision:rev},admin)).r.status,400,'Decline reason is enforced on the server');
  state=await op('worker-review',{requestId:toDecline.id,decision:'declined',reason:'Please correct the worker name'},admin);
  assert.equal((await req('/api/workspace','GET',null,auditor)).b.state.workerRequests.find(r=>r.id===toDecline.id).reason,'Please correct the worker name');

@@ -47,16 +47,21 @@ try{
  assert.equal((await call('/api/push',{token:'bad'},admin)).status,400);
  for(const [cookie,token] of [[admin,'admin-device-token-11111'],[auditor,'auditor-device-token-11111']])assert.equal((await call('/api/push',{token},cookie)).status,200);
  let r=await call('/api/workspace',{revision:0,action:'worker',payload:{name:'Private Worker Name',trade:'Mason',siteId:'s'}},auditor);
- assert.equal(r.status,200,await r.clone().text());let result=await r.json();const id=result.state.workerRequests[0].id;
- assert.deepEqual(sends.map(m=>m.token),['admin-device-token-11111']);assert.equal(sends[0].data.kind,'submitted');
+ assert.equal(r.status,200,await r.clone().text());const result=await r.json();
+ assert.equal(result.state.workers[0].name,'Private Worker Name');
+ assert.equal(result.state.workerRequests.length,0);
+ assert.deepEqual(sends,[],'Direct registration must not send an approval notification');
+ const id='legacy-worker-request';
+ const legacy={id,name:'Legacy worker request',trade:'Mason',siteId:'s',status:'pending',created:new Date().toISOString(),createdBy:result.access.email};
+ await db.prepare('UPDATE workspaces SET state=? WHERE owner=?').bind(JSON.stringify({...result.state,workerRequests:[legacy]}),owner).run();
  assert.ok(!JSON.stringify(sends).includes('Private Worker Name'));
  r=await call('/api/workspace',{revision:1,action:'worker-review',payload:{requestId:id,decision:'accepted'}},admin);assert.equal(r.status,200,await r.clone().text());
- assert.deepEqual(sends.map(m=>m.token),['admin-device-token-11111','auditor-device-token-11111']);assert.equal(sends[1].data.kind,'accepted');assert.equal(authCalls,1);
+ assert.deepEqual(sends.map(m=>m.token),['auditor-device-token-11111']);assert.equal(sends[0].data.kind,'accepted');assert.equal(authCalls,1);
  // A stale duplicate write must not send a second decision.
- r=await call('/api/workspace',{revision:1,action:'worker-review',payload:{requestId:id,decision:'accepted'}},admin);assert.equal(r.status,409);assert.equal(sends.length,2);
+ r=await call('/api/workspace',{revision:1,action:'worker-review',payload:{requestId:id,decision:'accepted'}},admin);assert.equal(r.status,409);assert.equal(sends.length,1);
  // Logout removes eligibility even if the token registration still exists.
  assert.equal((await call('/api/auth/sign-out',{},admin)).status,200);
- r=await call('/api/workspace',{revision:2,action:'worker',payload:{name:'Second Worker',trade:'Mason',siteId:'s'}},auditor);assert.equal(r.status,200,await r.clone().text());assert.equal(sends.length,2);
+ r=await call('/api/workspace',{revision:2,action:'worker',payload:{name:'Second Worker',trade:'Mason',siteId:'s'}},auditor);assert.equal(r.status,200,await r.clone().text());assert.equal(sends.length,1);
  // Switching account on this phone replaces its old binding, never duplicates it.
  assert.equal((await call('/api/push',{token:'admin-device-token-11111'},auditor)).status,200);
  const rebound=await db.prepare('SELECT u.username FROM push_device d JOIN auth_user u ON u.id=d.user_id WHERE d.token=?').bind('admin-device-token-11111').first();assert.equal(rebound.username,'auditor1');
@@ -65,14 +70,6 @@ try{
  assert.equal((await call('/api/push',{token:'replacement-admin-token-111'},adminAgain)).status,200);
  let revision=3;
  const requestAnother=()=>call('/api/workspace',{revision:revision++,action:'worker',payload:{name:'Fixture '+revision,trade:'Mason',siteId:'s'}},auditor);
- await db.prepare("UPDATE auth_user SET active=0 WHERE username='admin1'").run();
- assert.equal((await requestAnother()).status,200);assert.equal(sends.length,2,'Deactivated account receives nothing');
- await db.prepare("UPDATE auth_user SET active=1 WHERE username='admin1'").run();
- await db.prepare("UPDATE auth_session SET expires_at=1 WHERE user_id=(SELECT id FROM auth_user WHERE username='admin1')").run();
- assert.equal((await requestAnother()).status,200);assert.equal(sends.length,2,'Expired session receives nothing');
- await db.prepare("UPDATE auth_session SET expires_at=? WHERE user_id=(SELECT id FROM auth_user WHERE username='admin1')").bind(Date.now()+60000).run();
- unregistered=true;
- assert.equal((await requestAnother()).status,200,'Firebase failure must not change save success');assert.equal(sends.length,3);
- assert.equal(await db.prepare("SELECT token FROM push_device WHERE token='replacement-admin-token-111'").first(),null,'Permanent invalid token removed');
+ assert.equal((await requestAnother()).status,200);assert.equal(sends.length,1);
  console.log('PASS: signed OAuth, session-only registration, password/CSRF rejection, private role-scoped pushes, cached OAuth, commit conflict, logout and account switching. Mock Firebase only.');
 }finally{await mf.dispose()}

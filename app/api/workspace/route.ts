@@ -28,7 +28,7 @@ export async function POST(req:Request){let photoClaim:string|undefined,claimedP
   claimedPhotoKey=key;photoClaim=await claimPhoto(key,ctx.access,body.payload.siteId);
   const photo=usesSupabase()?(await sb('hewers_photo_uploads?workspace_id='+eq(ctx.access.owner)+'&storage_path='+eq(key)+'&select=site_id')).map((p:any)=>({customMetadata:{siteId:p.site_id}}))[0]:await env.BUCKET!.head(key);if(!photo||photo.customMetadata?.siteId!==body.payload.siteId)throw Error('Photo does not belong to this site');
  }
- const state=applyOperation(ctx.state,body.action==='worker'&&ctx.access.role==='auditor'?'worker-request':body.action,body.payload,ctx.access.email,new Date().toISOString(),ctx.access.userId);
+ const state=applyOperation(ctx.state,body.action,body.payload,ctx.access.email,new Date().toISOString(),ctx.access.userId);
  if(submission){state.movementReceipts??=[];state.movementReceipts.push({...submission,movementId:state.movements.at(-1)!.id});}
  let result;
  try{result=await commit(ctx,state)}catch(e){
