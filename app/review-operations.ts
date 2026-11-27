@@ -15,7 +15,7 @@ function correctedLunch(record:Attendance,p:Record<string,unknown>,now:string){
  if(proposedLunchOut&&proposedLunchIn&&(day(proposedLunchOut)!==day(proposedLunchIn)||Date.parse(proposedLunchIn)<=Date.parse(proposedLunchOut)))throw Error('Return from Lunch must be on the same day and later than Lunch Out.');
  return {originalLunchOut,originalLunchIn,proposedLunchOut,proposedLunchIn};
 }
-function validAttendance(s:State,workerId:string,exclude:string,timeIn:string,timeOut:string|null){
+export function validAttendance(s:State,workerId:string,exclude:string,timeIn:string,timeOut:string|null){
  if(timeOut===null&&s.workers.some(w=>w.id===workerId&&w.archivedAt))throw Error('Restore this archived worker before reopening attendance. Completed attendance can still be corrected.');
  const start=Date.parse(timeIn),end=timeOut?Date.parse(timeOut):Infinity;
  if(end<=start)throw Error('Time out must be later than time in');

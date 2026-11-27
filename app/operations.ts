@@ -1,10 +1,12 @@
 import {applyOfflineOperation} from './offline-operations';
+import {recordPastShifts} from './past-attendance';
 import {checkShiftEntry,shiftTime,REGULAR_END,overtimeApprovalStatus,validateSchedule,recordSchedule} from './shift-policy';
 import {day} from './model';
 import type {State} from './model';
 import {applyReviewOperation,reviewActions} from './review-operations';
 const uid=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
 export function applyOperation(original:State,action:string,p:any,actor:string,now=new Date().toISOString(),actorId?:string):State{
+ if(action==='attendance-backfill')return recordPastShifts(original,p,actor,actorId,now);
  if(action==='offline-attendance-request'||action==='offline-attendance-review')return applyOfflineOperation(original,action,p,actor,now,actorId);
  if(reviewActions.includes(action))return applyReviewOperation(original,action,p,actor,now,actorId);
  const s:State=structuredClone(original),id=uid();

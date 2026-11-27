@@ -1,7 +1,7 @@
 export type ShiftSchedule={start:string;end:string;breakStart?:string;breakEnd?:string};
 export type Site={id:string;name:string;location:string;shiftEnd?:string;remindersDisabled?:boolean;reminderUsesSchedule?:boolean;schedule?:ShiftSchedule};
 export type Worker={id:string;name:string;trade:string;siteId:string;archivedAt?:string;archivedBy?:string};
-export type Attendance={id:string;workerId:string;siteId:string;timeIn:string;timeOut:string|null;lunchOut?:string;lunchIn?:string;method:string;timeOutMethod?:string;note:string;correctionId?:string;schedule?:ShiftSchedule;shiftKind?:'regular'|'overtime';overtimeApprovalId?:string;shiftEndAt?:string};
+export type Attendance={id:string;workerId:string;siteId:string;timeIn:string;timeOut:string|null;lunchOut?:string;lunchIn?:string;paidLunch?:boolean;method:string;timeOutMethod?:string;note:string;correctionId?:string;schedule?:ShiftSchedule;shiftKind?:'regular'|'overtime';overtimeApprovalId?:string;shiftEndAt?:string};
 export type Material={id:string;name:string;unit:string;siteId:string;balance:number;minimum:number};
 export type Movement={id:string;materialId:string;siteId:string;type:string;quantity:number;note:string;created:string;actor:string;adjustmentDelta?:number;reconciliationId?:string};
 export type Evidence={id:string;siteId:string;caption:string;category:string;url:string;created:string;actor:string;transactionId:string};

@@ -13,8 +13,8 @@ export function attendanceHours(record:Attendance){
  const schedule=recordSchedule(record),date=day(record.timeIn),start=Date.parse(record.timeIn),end=record.timeOut?Date.parse(record.timeOut):null;
  const shiftStart=shiftTime(date,schedule.start),shiftEnd=shiftTime(date,schedule.end);
  const overlap=(a:number,b:number,c:number,d:number)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
- const scheduledBreakMs=(a:number,b:number)=>schedule.breakStart&&schedule.breakEnd?overlap(a,b,shiftTime(date,schedule.breakStart),shiftTime(date,schedule.breakEnd)):0;
- const breakMs=(a:number,b:number)=>record.lunchOut?overlap(a,b,Date.parse(record.lunchOut),record.lunchIn?Date.parse(record.lunchIn):b):scheduledBreakMs(a,b);
+ const scheduledBreakMs=(a:number,b:number)=>!record.paidLunch&&schedule.breakStart&&schedule.breakEnd?overlap(a,b,shiftTime(date,schedule.breakStart),shiftTime(date,schedule.breakEnd)):0;
+ const breakMs=(a:number,b:number)=>record.paidLunch?0:record.lunchOut?overlap(a,b,Date.parse(record.lunchOut),record.lunchIn?Date.parse(record.lunchIn):b):scheduledBreakMs(a,b);
  const lateMinutes=record.shiftKind==='overtime'?0:Math.max(0,Math.ceil((start-shiftStart)/60000));
  if(end===null)return {workedMinutes:null,regularMinutes:null,undertimeMinutes:null,earlyDepartureMinutes:null,lateMinutes};
  const worked=Math.max(0,end-start-(record.shiftKind==='overtime'?0:breakMs(start,end)));
