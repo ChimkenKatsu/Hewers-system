@@ -112,8 +112,14 @@ async function captureStationary(video:HTMLVideoElement,started:number,onPrompt:
    }
    frames.push(frame);
   }
-  catch(e){if(!alive())throw e;const reason=scanReason(e);if(!['no-face','multiple-faces','too-small','out-of-frame','not-centered','lighting','blur','camera'].includes(reason))throw e;hint=e instanceof Error?e.message:'Face the camera';onPrompt(hint);}
-  if(!frames.length)await new Promise(resolve=>setTimeout(resolve,180));
+  catch(e){
+   if(!alive())throw e;
+   const reason=scanReason(e);
+   if(!['no-face','multiple-faces','too-small','out-of-frame','not-centered','lighting','blur','camera'].includes(reason))throw e;
+   hint=e instanceof Error?e.message:'Face the camera';
+   onPrompt(hint);
+   await new Promise(resolve=>setTimeout(resolve,100));
+  }
  }
  return frames;
 }

@@ -16,6 +16,7 @@ type ScanResult = {workerName:string;timeIn?:string;alreadyCheckedIn?:boolean;re
 type ScannerFeedback={kind:'matched'|'saved'|'retry'|'unrecognized';text:string;worker?:string};
 const time = new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',hour:'numeric',minute:'2-digit'});
 const readyMessage = 'Look straight at the camera and hold still.';
+const stableFaceHoldMs = 400;
 
 class ScanConnectionError extends Error {}
 class UnrecognizedWorkerError extends Error {}
@@ -55,7 +56,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
   const controller=new AbortController();
   let stream:MediaStream|undefined;
   let timer:ReturnType<typeof setTimeout>;
-  let gate=autoEnrollmentGate(550);
+  let gate=autoEnrollmentGate(stableFaceHoldMs);
   let gateMode=activeMode.current;
   let waitingForExit=false;
   let emptySince:number|undefined;
@@ -118,13 +119,13 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
     if(emptySince!==undefined&&now-emptySince>=900){
      waitingForExit=false;
      emptySince=undefined;
-     gate=autoEnrollmentGate(550);
+     gate=autoEnrollmentGate(stableFaceHoldMs);
      setMessage(readyMessage);
     }
    }else{
     if(gateMode!==activeMode.current){
      gateMode=activeMode.current;
-     gate=autoEnrollmentGate(550);
+     gate=autoEnrollmentGate(stableFaceHoldMs);
     }
     const next=gate.check(true,hint.ready,performance.now());
     setMessage(next.seconds?'Hold still · '+scannerActions[gateMode]+' will record automatically…':hint.ready?readyMessage:hint.message);
@@ -140,7 +141,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
      if(alive())setMessage('Step away from the camera before the next scan.');
     }
    }
-   if(alive())timer=setTimeout(()=>void inspect(),150);
+   if(alive())timer=setTimeout(()=>void inspect(),hint.ready&&!waitingForExit?100:150);
   }
 
   async function start(){
@@ -200,9 +201,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
    <div className="kiosk-top-overlay">
     {onBack&&<button className="text-btn kiosk-back" onClick={onBack}><ArrowLeft size={16}/>Attendance</button>}
     <h2 id="hands-free-check-in-heading" tabIndex={-1}>Hands-free attendance</h2>
-    {active&&result?.kind==='matched'
-     ?<p className="kiosk-success-title" role="status">Face Scanned Successfully</p>
-     :siteId&&<p>{siteName?siteName+' · ':''}Face the camera and hold still.</p>}
+    {siteId&&<p className="kiosk-camera-instruction">{siteName?siteName+' · ':''}Face the camera and hold still.</p>}
     {siteId&&<label className="select-wrap">Attendance action
      <select value={mode} disabled={active&&scanning} onChange={event=>{
       const action=event.target.value as ScannerAction;
@@ -215,6 +214,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
     </label>}
    </div>
    <div className="kiosk-feedback" role="status">
+    {active&&result?.kind==='matched'&&<p className="kiosk-success-title">Face Scanned Successfully</p>}
     {active&&result&&result.kind!=='unrecognized'&&<div className={'kiosk-result '+result.kind}>
      {result.kind==='matched'?<CheckCircle2 aria-hidden="true"/>:result.kind==='saved'?<CloudOff aria-hidden="true"/>:<TriangleAlert aria-hidden="true"/>}
      <div><strong>{result.kind==='matched'?result.worker:result.kind==='saved'?'Saved offline':'Scan needs attention'}</strong><span>{result.text}</span></div>

@@ -396,3 +396,18 @@
   min-height:max(410px,calc(100dvh - 175px - env(safe-area-inset-bottom,0px)));
  }
 }
+
+.kiosk-feedback .kiosk-success-title{font-size:18px;font-weight:700;margin:0 0 8px}
+@media(max-width:700px){
+ .kiosk-scan .camera-stage:not([data-preview="select-site"]) .kiosk-top-overlay{padding:6px 12px}
+ .kiosk-scan .camera-stage:not([data-preview="select-site"]) .kiosk-top-overlay :is(.kiosk-back,.kiosk-camera-instruction){display:none}
+ .kiosk-scan .camera-stage:not([data-preview="select-site"]) #hands-free-check-in-heading{
+  position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;
+ }
+ .kiosk-scan .kiosk-feedback{
+  min-height:104px;display:grid;align-content:center;gap:6px;
+  padding:16px;background:rgb(255 255 255 / 78%);
+ }
+ .kiosk-scan .kiosk-status{font-size:16px;line-height:1.45;margin:0}
+ .kiosk-scan .camera-stage[data-preview="select-site"] .kiosk-feedback{min-height:0}
+}
