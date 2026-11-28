@@ -56,6 +56,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
   const controller=new AbortController();
   let stream:MediaStream|undefined;
   let timer:ReturnType<typeof setTimeout>;
+  let permissionHint:ReturnType<typeof setTimeout>;
   let gate=autoEnrollmentGate(stableFaceHoldMs);
   let gateMode=activeMode.current;
   let waitingForExit=false;
@@ -64,6 +65,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
   const stop=()=>{
    controller.abort();
    clearTimeout(timer);
+   clearTimeout(permissionHint);
    stream?.getTracks().forEach(track=>track.stop());
    if(player.srcObject===stream)player.srcObject=null;
   };
@@ -156,7 +158,9 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
     // Camera permission can take longer than model loading. Observe a rejection
     // immediately, then surface it through the existing camera error handler.
     void engine.catch(()=>{});
+    permissionHint=setTimeout(()=>setMessage('Check your browser’s camera permission prompt.'),3500);
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    clearTimeout(permissionHint);
     if(!alive()){stream.getTracks().forEach(track=>track.stop());return;}
     stream.getVideoTracks()[0]?.addEventListener('ended',()=>{
      if(!controller.signal.aborted){setPreview(false);setCameraError('Camera disconnected. Reconnect it, then retry.');stop();}
@@ -185,7 +189,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
  const hasPreview=active&&preview;
  const status=!siteId?'Select a site above to start the camera.'
   :paused?'Camera paused.':!visible?'Camera waits for the check-in screen to be visible.'
-  :cameraError?'Camera unavailable.':message;
+  :cameraError?cameraError:message;
  return <section className="panel face-camera kiosk-scan">
   <dialog ref={recognitionDialog} className="face-alert" aria-labelledby="scan-unrecognized-title" aria-describedby="scan-unrecognized-message" onClose={()=>setResult(current=>current?.kind==='unrecognized'?null:current)}>
    <TriangleAlert className="scan-warning-icon" size={44} aria-hidden="true"/>
@@ -196,7 +200,7 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
   </dialog>
   <div className="camera-stage" data-preview={hasPreview?'live':siteId?'waiting':'select-site'}>
    <video ref={video} muted playsInline disablePictureInPicture aria-label="Live check-in camera" aria-hidden={!hasPreview}/>
-   {hasPreview&&<div className="face-guide" aria-hidden="true"/>}
+   {siteId&&<div className="face-guide" aria-hidden="true"/>}
    {!hasPreview&&<div className="camera-placeholder" aria-hidden="true"><ScanFace size={42}/></div>}
    <div className="kiosk-top-overlay">
     {onBack&&<button className="text-btn kiosk-back" onClick={onBack}><ArrowLeft size={16}/>Attendance</button>}
@@ -213,23 +217,17 @@ export default function FaceCheckIn({workspaceId, userId, siteId, siteName, onBa
      </select>
     </label>}
    </div>
-   <div className="kiosk-feedback" role="status">
+   <div className="kiosk-feedback"><div role="status">
     {active&&result?.kind==='matched'&&<p className="kiosk-success-title">Face Scanned Successfully</p>}
     {active&&result&&result.kind!=='unrecognized'&&<div className={'kiosk-result '+result.kind}>
      {result.kind==='matched'?<CheckCircle2 aria-hidden="true"/>:result.kind==='saved'?<CloudOff aria-hidden="true"/>:<TriangleAlert aria-hidden="true"/>}
      <div><strong>{result.kind==='matched'?result.worker:result.kind==='saved'?'Saved offline':'Scan needs attention'}</strong><span>{result.text}</span></div>
     </div>}
-    <p className="kiosk-status">{status}</p>
+    <p className="kiosk-status">{status}</p></div>
+    {!!siteId&&<button className="btn secondary scanner-control" onClick={()=>cameraError&&!paused?setRetry(value=>value+1):setPaused(value=>!value)}>{paused?'Resume camera':cameraError?'Retry camera':'Pause camera'}</button>}
    </div>
   </div>
   {offline.queued>0&&<p className="kiosk-queue">{offline.queued} {offline.queued===1?'scan':'scans'} waiting to sync</p>}
   <OfflineFaceReview scans={offline.review}/>
-  {active&&cameraError&&<div className="error" role="alert">{cameraError}</div>}
-  {!!siteId&&<div className="camera-actions">
-   {cameraError&&!paused
-    ?<button className="btn secondary" onClick={()=>setRetry(value=>value+1)}>Retry camera</button>
-    :<button className="btn secondary" onClick={()=>setPaused(value=>!value)}>{paused?'Resume camera':'Pause camera'}</button>}
-  </div>}
-  <p className="fineprint">Workers need a one-time enrollment. The device may ask for camera permission. A site operator must supervise the scanner.</p>
  </section>;
 }

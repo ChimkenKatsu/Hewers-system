@@ -411,3 +411,33 @@
  .kiosk-scan .kiosk-status{font-size:16px;line-height:1.45;margin:0}
  .kiosk-scan .camera-stage[data-preview="select-site"] .kiosk-feedback{min-height:0}
 }
+
+/* Center the scan guide in the unobstructed camera area. */
+.kiosk-scan .camera-stage .face-guide{
+ position:relative;grid-row:2;grid-column:1;place-self:center;
+ inset:auto;transform:none;width:min(60%,245px);height:auto;aspect-ratio:1;
+}
+
+@media(max-width:700px){
+ .app-shell .kiosk-scan .camera-stage:not([data-preview="select-site"]){
+  min-height:max(350px,calc(100dvh - 212px - env(safe-area-inset-bottom,0px)));
+  grid-template-columns:minmax(0,1fr);
+ }
+ .kiosk-scan .camera-stage[data-preview="waiting"]{
+  background-color:#102f47;
+  background-image:linear-gradient(#ffffff09 1px,transparent 1px),linear-gradient(90deg,#ffffff09 1px,transparent 1px);
+  background-size:28px 28px;
+ }
+ .kiosk-scan [data-preview="waiting"] .camera-placeholder{
+  position:relative;grid-area:2/1;place-self:center;color:#c4d4df;padding:0;
+ }
+ .kiosk-scan .camera-stage:not([data-preview="select-site"]) .kiosk-top-overlay{
+  grid-column:1;padding:6px 14px;background:rgb(249 251 252 / 90%);
+ }
+ .kiosk-scan .camera-stage:not([data-preview="select-site"]) .kiosk-feedback{
+  grid-column:1;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;
+  min-height:80px;padding:12px 14px;background:rgb(255 255 255 / 90%);text-align:left;
+ }
+ .kiosk-scan .scanner-control{min-height:44px;padding:8px 12px}
+ .kiosk-scan .kiosk-status{font-size:14px;overflow-wrap:anywhere}
+}
