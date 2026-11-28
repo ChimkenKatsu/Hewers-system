@@ -36,6 +36,7 @@ export default function PayrollPanel({workspaceId}:{workspaceId:string}){
   const [status,setStatus]=useState('');
   const [refresh,setRefresh]=useState(0);
   const [saving,setSaving]=useState(false);
+  const useCsv=typeof window!=='undefined'&&'HewersDownloads' in window;
   const url='/api/payroll?'+new URLSearchParams({week});
 
   useEffect(()=>{
@@ -83,8 +84,12 @@ export default function PayrollPanel({workspaceId}:{workspaceId:string}){
       if(!response.ok||!('rows' in data))throw Error('error' in data?data.error:'Unable to save payroll.');
       setResult(data);
       setDraft({});
-      exportPayroll(week,data.rows);
-      setStatus('Reviewed payroll saved to Supabase. The CSV is ready to save or import.');
+      setStatus('Reviewed payroll saved.');
+      if(useCsv)exportPayroll(week,data.rows);
+      else {
+        const {createPayrollWorkbook,downloadWorkbook}=await import('./report-excel');
+        await downloadWorkbook(createPayrollWorkbook(data.rows),'Hewers-Weekly-Payroll-'+week+'.xlsx');
+      }
     }catch(cause){
       setError(cause instanceof Error?cause.message:'Unable to save payroll.');
     }finally{setSaving(false);}
@@ -105,7 +110,7 @@ export default function PayrollPanel({workspaceId}:{workspaceId:string}){
         }}/>
       </label>
       <button className="btn" disabled={!rows.length||!!blocked||saving} onClick={()=>void saveAndExport()}>
-        {saving?'Saving payroll…':'Save and export CSV'}
+        {saving?'Saving payroll…':useCsv?'Save and export CSV':'Save and export Excel'}
       </button>
     </div>
     {!week&&<p role="status">Choose a week start date.</p>}

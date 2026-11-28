@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import {payrollColumns,type PayrollRow} from './payroll';
 import {reportColumns,reportDescriptions,type ReportKind} from './report-layout';
 
 export function createReportWorkbook(kind:ReportKind,rows:(string|number)[][],site:string,date:string,generatedAt=new Date()){
@@ -27,7 +28,45 @@ export function createReportWorkbook(kind:ReportKind,rows:(string|number)[][],si
 
 export async function downloadReportExcel(kind:ReportKind,rows:(string|number)[][],site:string,date:string){
  if('HewersDownloads' in window)throw Error('For formatted Excel, open Hewers in your browser. CSV downloads are available in this app.');
- const workbook=createReportWorkbook(kind,rows,site,date),bytes=await workbook.xlsx.writeBuffer();
+ await downloadWorkbook(createReportWorkbook(kind,rows,site,date),'Hewers-'+kind+'-'+date+'.xlsx');
+}
+
+export function createPayrollWorkbook(rows:PayrollRow[]){
+ const book=new ExcelJS.Workbook();
+ const sheet=book.addWorksheet('Weekly payroll',{views:[{state:'frozen',ySplit:1}]});
+ const header=sheet.addRow(payrollColumns);
+ header.font={name:'Calibri',size:11,bold:true,color:{argb:'FFFFFFFF'}};
+ header.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF082C45'}};
+ header.height=23;
+ const context=typeof document==='undefined'?null:document.createElement('canvas').getContext('2d');
+ function width(text:string,bold=false){
+   if(!context)return Array.from(text).reduce((total,c)=>total+(/[MW@\u3000-\uffff]/u.test(c)?2:1),0)+3;
+   context.font='11pt Calibri, Arial, sans-serif';
+   const unit=context.measureText('0').width;
+   if(bold)context.font='bold '+context.font;
+   return Math.ceil(context.measureText(text).width/unit)+3;
+ }
+ const widths=payrollColumns.map(title=>width(title,true));
+ const decimal=new Intl.NumberFormat('en-PH',{minimumFractionDigits:2,maximumFractionDigits:4});
+ for(const row of rows){
+   const values=[row.idnum,row.name,row.rate,row.hr_rate,new Date(row.week_start+'T00:00:00Z'),row.hours_to_pay,row.weekly_pay];
+   const record=sheet.addRow(values);
+   values.forEach((value,index)=>{
+     const cell=record.getCell(index+1);
+     let label=String(value??'');
+     if(value instanceof Date){cell.numFmt='yyyy-mm-dd';label=row.week_start;}
+     if(typeof value==='number'){cell.numFmt=index===6?'#,##0.00':'#,##0.00##';label=decimal.format(value);}
+     const needed=width(label);
+     widths[index]=Math.max(widths[index],Math.min(255,needed));
+     if(needed>255)cell.alignment={wrapText:true};
+   });
+ }
+ widths.forEach((size,index)=>{sheet.getColumn(index+1).width=size;});
+ return book;
+}
+
+export async function downloadWorkbook(workbook:ExcelJS.Workbook,filename:string){
+ const bytes=await workbook.xlsx.writeBuffer();
  const url=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
- const a=document.createElement('a');a.href=url;a.download='Hewers-'+kind+'-'+date+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
